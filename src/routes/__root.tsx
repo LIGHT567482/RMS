@@ -1,7 +1,14 @@
 import { Outlet, Link, createRootRoute, HeadContent, Scripts } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { AuthProvider } from "@/lib/auth";
-import { useStore, getSchool, defaultSchool, getTheme, setTheme } from "@/lib/storage";
+import {
+  useStore,
+  getSchool,
+  defaultSchool,
+  getTheme,
+  setTheme,
+  ensureInitialized,
+} from "@/lib/storage";
 import { Button } from "@/components/ui/button";
 import { Moon, Sun } from "lucide-react";
 import { Toaster } from "@/components/ui/sonner";
@@ -36,13 +43,19 @@ export const Route = createRootRoute({
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: "Report Management System (RMS)" },
-      { name: "description", content: "Offline report management system for school report cards. Staff use only." },
+      {
+        name: "description",
+        content: "Offline report management system for school report cards. Staff use only.",
+      },
     ],
     links: [
       { rel: "stylesheet", href: appCss },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
-      { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@600;700;800&display=swap" },
+      {
+        rel: "stylesheet",
+        href: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@600;700;800&display=swap",
+      },
     ],
   }),
   shellComponent: RootShell,
@@ -53,7 +66,9 @@ export const Route = createRootRoute({
 function RootShell({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <head><HeadContent /></head>
+      <head>
+        <HeadContent />
+      </head>
       <body>
         {children}
         <Scripts />
@@ -65,6 +80,11 @@ function RootShell({ children }: { children: React.ReactNode }) {
 function RootComponent() {
   const school = useStore(getSchool);
   const [theme, setThemeState] = useState<"light" | "dark">("light");
+
+  useEffect(() => {
+    // Initialize storage with default subjects and school info on first load
+    ensureInitialized();
+  }, []);
 
   useEffect(() => {
     if (typeof document === "undefined") return;
@@ -84,7 +104,7 @@ function RootComponent() {
   useEffect(() => {
     if (typeof document === "undefined") return;
     const root = document.documentElement;
-    const vars: Array<[string, string]> = [
+    const vars: Array<[string, string | undefined]> = [
       ["--primary", school.primaryColor || defaultSchool.primaryColor],
       ["--secondary", school.secondaryColor || defaultSchool.secondaryColor],
       ["--accent", school.accentColor || defaultSchool.accentColor],

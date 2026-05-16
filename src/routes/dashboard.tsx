@@ -2,12 +2,28 @@ import { createFileRoute, Outlet, Link, useNavigate, useRouterState } from "@tan
 import { useEffect } from "react";
 import { useAuth } from "@/lib/auth";
 import {
-  Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel,
-  SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarTrigger,
+  Sidebar,
+  SidebarContent,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarProvider,
+  SidebarTrigger,
 } from "@/components/ui/sidebar";
 import {
-  LayoutDashboard, Users, BookOpen, ClipboardList, FileText, Settings, LogOut,
-  Sparkles, GraduationCap, AlertTriangle,
+  LayoutDashboard,
+  Users,
+  BookOpen,
+  ClipboardList,
+  FileText,
+  Settings,
+  LogOut,
+  Sparkles,
+  GraduationCap,
+  AlertTriangle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useStore, getSchool } from "@/lib/storage";
@@ -19,7 +35,6 @@ export const Route = createFileRoute("/dashboard")({
 const NAV: { to: string; label: string; icon: any; exact?: boolean }[] = [
   { to: "/dashboard", label: "Overview", icon: LayoutDashboard, exact: true },
   { to: "/dashboard/students", label: "Students", icon: Users },
-  { to: "/dashboard/subjects", label: "Subjects", icon: BookOpen },
   { to: "/dashboard/marks", label: "Enter Marks", icon: ClipboardList },
   { to: "/dashboard/project-work", label: "Project Work", icon: Sparkles },
   { to: "/dashboard/reports", label: "Report Cards", icon: FileText },
@@ -44,19 +59,33 @@ function DashboardLayout() {
         <Sidebar collapsible="icon">
           <SidebarContent>
             <div className="px-4 py-5 flex items-center gap-3 border-b border-sidebar-border">
-              <div className="h-9 w-9 rounded-lg overflow-hidden flex items-center justify-center shrink-0"
-                   style={{ background: school.logoDataUrl ? "transparent" : "var(--gradient-gold)" }}>
+              <div
+                className="h-9 w-9 rounded-lg overflow-hidden flex items-center justify-center shrink-0"
+                style={{ background: school.logoDataUrl ? "transparent" : "var(--gradient-gold)" }}
+              >
                 {school.logoDataUrl ? (
-                  <img src={school.logoDataUrl} alt="School logo" className="h-full w-full object-cover" />
+                  <img
+                    src={school.logoDataUrl}
+                    alt="School logo"
+                    className="h-full w-full object-cover"
+                  />
                 ) : (
                   <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-[oklch(0.2_0.05_60)]">
-                    {school.name.split(" ").map((part) => part[0]).slice(0, 2).join("")}
+                    {school.name
+                      .split(" ")
+                      .map((part) => part[0])
+                      .slice(0, 2)
+                      .join("")}
                   </span>
                 )}
               </div>
               <div className="min-w-0 group-data-[collapsible=icon]:hidden">
-                <p className="font-display text-sm text-sidebar-foreground truncate">{school.name}</p>
-                <p className="text-[10px] text-sidebar-foreground/60 tracking-wider">REPORT CARD SYSTEM</p>
+                <p className="font-display text-sm text-sidebar-foreground truncate">
+                  {school.name}
+                </p>
+                <p className="text-[10px] text-sidebar-foreground/60 tracking-wider">
+                  REPORT CARD SYSTEM
+                </p>
               </div>
             </div>
 
@@ -82,8 +111,15 @@ function DashboardLayout() {
             </SidebarGroup>
 
             <div className="mt-auto p-3 border-t border-sidebar-border">
-              <Button variant="ghost" size="sm" className="w-full justify-start text-sidebar-foreground hover:bg-sidebar-accent"
-                onClick={() => { auth.signOut(); navigate({ to: "/" }); }}>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full justify-start text-sidebar-foreground hover:bg-sidebar-accent"
+                onClick={() => {
+                  auth.signOut();
+                  navigate({ to: "/" });
+                }}
+              >
                 <LogOut className="h-4 w-4 mr-2" /> Sign Out
               </Button>
             </div>

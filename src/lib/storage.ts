@@ -1,21 +1,36 @@
 // Tiny localStorage-backed store. Offline-first as requested.
 import {
-  ALL_CLASSES, COMPULSORY_SUBJECTS, OPTIONAL_SUBJECTS, ADVANCED_SUBJECTS,
-  type AuthInfo, type Mark, type ProjectWork, type SchoolInfo, type Student, type Subject, type GradeScale,
-  defaultOrdinaryScale, defaultAdvancedScale,
+  ALL_CLASSES,
+  COMPULSORY_SUBJECTS,
+  OPTIONAL_SUBJECTS,
+  ADVANCED_SUBJECTS,
+  ADVANCED_SPECIAL_SUBJECTS,
+  type AuthInfo,
+  type Mark,
+  type ProjectWork,
+  type SchoolInfo,
+  type Student,
+  type Subject,
+  type GradeScale,
+  type Combination,
+  defaultOrdinaryScale,
+  defaultAdvancedScale,
 } from "./types";
 
-const NS = "ample_high:";
+const NS = "light_rms:";
 const K = {
   school: NS + "school",
   auth: NS + "auth",
   students: NS + "students",
-  subjects: NS + "subjects",
+  ordinarySubjects: NS + "ordinarySubjects",
+  advancedSubjects: NS + "advancedSubjects",
+  combinations: NS + "combinations",
   marks: NS + "marks",
   projects: NS + "projects",
   initialized: NS + "init",
   adminPassword: NS + "adminPassword",
   theme: NS + "theme",
+  paperGradingConfig: NS + "paperGradingConfig",
 };
 
 function read<T>(key: string, fallback: T): T {
@@ -30,7 +45,7 @@ function read<T>(key: string, fallback: T): T {
 function write<T>(key: string, value: T) {
   if (typeof window === "undefined") return;
   window.localStorage.setItem(key, JSON.stringify(value));
-  window.dispatchEvent(new CustomEvent("ample-storage-change", { detail: { key } }));
+  window.dispatchEvent(new CustomEvent("light-storage-change", { detail: { key } }));
 }
 
 /** Default subject papers: key is "O:${subject}" for O-level or "A:${subject}" for A-level */
@@ -39,7 +54,7 @@ function defaultSubjectPapers(): Record<string, number> {
   // O-level defaults (typically 1 paper, but some have multiple)
   COMPULSORY_SUBJECTS.forEach((s) => (papers[`O:${s}`] = 1));
   OPTIONAL_SUBJECTS.forEach((s) => (papers[`O:${s}`] = 1));
-  
+
   // A-level defaults
   papers["A:Physics"] = 3;
   papers["A:Chemistry"] = 2;
@@ -58,6 +73,63 @@ function defaultSubjectPapers(): Record<string, number> {
   papers["A:SubsidiaryMath"] = 1;
 
   return papers;
+}
+
+function roundToOneDecimal(value: number) {
+  return Math.round(value * 10) / 10;
+}
+
+function defaultCombinations(): Combination[] {
+  return [
+    {
+      id: "PCM",
+      name: "Physics, Chemistry, Mathematics",
+      shortForm: "PCM",
+      subjects: ["Physics", "Chemistry", "Mathematics"],
+    },
+    {
+      id: "PCB",
+      name: "Physics, Chemistry, Biology",
+      shortForm: "PCB",
+      subjects: ["Physics", "Chemistry", "Biology"],
+    },
+    {
+      id: "PCM/ICT",
+      name: "Physics, Chemistry, Mathematics / Subsidiary ICT",
+      shortForm: "PCM/ICT",
+      subjects: ["Physics", "Chemistry", "Mathematics", "SubsidiaryICT"],
+    },
+    {
+      id: "PCB/ICT",
+      name: "Physics, Chemistry, Biology / Subsidiary ICT",
+      shortForm: "PCB/ICT",
+      subjects: ["Physics", "Chemistry", "Biology", "SubsidiaryICT"],
+    },
+    {
+      id: "MEG",
+      name: "Mathematics, Economics, Geography",
+      shortForm: "MEG",
+      subjects: ["Mathematics", "Economics", "Geography"],
+    },
+    {
+      id: "HEG",
+      name: "History, Economics, Geography",
+      shortForm: "HEG",
+      subjects: ["History", "Economics", "Geography"],
+    },
+    {
+      id: "MEG/ICT",
+      name: "Mathematics, Economics, Geography / Subsidiary ICT",
+      shortForm: "MEG/ICT",
+      subjects: ["Mathematics", "Economics", "Geography", "SubsidiaryICT"],
+    },
+    {
+      id: "HEG/ICT",
+      name: "History, Economics, Geography / Subsidiary ICT",
+      shortForm: "HEG/ICT",
+      subjects: ["History", "Economics", "Geography", "SubsidiaryICT"],
+    },
+  ];
 }
 
 export const defaultSchool: SchoolInfo = {
@@ -83,35 +155,68 @@ export const defaultSchool: SchoolInfo = {
   reportCardContentColorAdvanced: "#111111",
   reportCardHeadingColorAdvanced: "#dc2626",
   reportCardColor: "#3c64ff",
-  issueDate: new Date()
-    .toLocaleDateString("en-GB")
-    .replace(/-/g, "/"),
+  reportCardWatermarkColored: true,
+  selectedExamSets: [],
+  studentIdentificationPrefix: "",
+  issueDate: "",
   gradingScales: {
-    "_default_ordinary": defaultOrdinaryScale(),
-    "_default_advanced": defaultAdvancedScale(),
+    _default_ordinary: defaultOrdinaryScale(),
+    _default_advanced: defaultAdvancedScale(),
   },
   subjectPapers: defaultSubjectPapers(),
 };
+
+function buildDefaultOrdinarySubjects(): Subject[] {
+  const defaults: Subject[] = [];
+  const add = (name: string, isOptional: boolean) => {
+    const existing = defaults.find((s) => s.name === name);
+    if (!existing) {
+      defaults.push({ id: name, name, isOptional });
+    }
+  };
+
+  COMPULSORY_SUBJECTS.forEach((n) => add(n, false));
+  OPTIONAL_SUBJECTS.forEach((n) => add(n, true));
+
+  return defaults;
+}
+
+function buildDefaultAdvancedSubjects(): Subject[] {
+  const defaults: Subject[] = [];
+  const add = (name: string, isOptional: boolean) => {
+    const existing = defaults.find((s) => s.name === name);
+    if (!existing) {
+      defaults.push({ id: name, name, isOptional });
+    }
+  };
+
+  ADVANCED_SUBJECTS.forEach((n) => add(n, false));
+  ADVANCED_SPECIAL_SUBJECTS.forEach((n) => add(n, false)); // A-level: all subjects are compulsory
+
+  return defaults;
+}
 
 export function ensureInitialized() {
   if (typeof window === "undefined") return;
   if (window.localStorage.getItem(K.initialized)) return;
 
   write<SchoolInfo>(K.school, defaultSchool);
-  const subjects: Subject[] = [
-    ...COMPULSORY_SUBJECTS.map((n) => ({ id: n, name: n, isOptional: false })),
-    ...OPTIONAL_SUBJECTS.map((n) => ({ id: n, name: n, isOptional: true })),
-  ];
-  write<Subject[]>(K.subjects, subjects);
+  write<Subject[]>(K.ordinarySubjects, buildDefaultOrdinarySubjects());
+  write<Subject[]>(K.advancedSubjects, buildDefaultAdvancedSubjects());
   write<Student[]>(K.students, []);
   write<Mark[]>(K.marks, []);
   write<ProjectWork[]>(K.projects, []);
+  write<Combination[]>(K.combinations, defaultCombinations());
   write<AuthInfo | null>(K.auth, null); // not yet set — first-time setup
+  write<Record<string, import("./types").PaperGradingMode>>(K.paperGradingConfig, {});
   window.localStorage.setItem(K.initialized, "1");
 }
 
 // === School ===
-export const getSchool = () => read<SchoolInfo>(K.school, defaultSchool);
+export const getSchool = () => {
+  const saved = read<Partial<SchoolInfo>>(K.school, {});
+  return { ...defaultSchool, ...saved } as SchoolInfo;
+};
 export const setSchool = (s: SchoolInfo) => write(K.school, s);
 
 // === Auth ===
@@ -138,27 +243,162 @@ export function deleteStudent(id: string) {
   setProjects(getProjects().filter((p) => p.studentId !== id));
 }
 
-// === Subjects ===
-export const getSubjects = () => read<Subject[]>(K.subjects, []);
-export const setSubjects = (v: Subject[]) => write(K.subjects, v);
-export function addSubject(s: Subject) {
-  const all = getSubjects();
+// === Subjects (Separate Ordinary and Advanced) ===
+// These merge saved subjects with defaults. Defaults are always available;
+// admin can delete subjects and they stay deleted (not in the list).
+export const getOrdinarySubjects = () => {
+  const saved = read<Subject[]>(K.ordinarySubjects, []);
+  const defaults = buildDefaultOrdinarySubjects();
+
+  // Merge: start with defaults, then override/add from saved
+  const merged = [...defaults];
+  for (const subject of saved) {
+    const idx = merged.findIndex((s) => s.name === subject.name);
+    if (subject.deleted) {
+      if (idx >= 0) {
+        merged.splice(idx, 1);
+      }
+      continue;
+    }
+    if (idx >= 0) {
+      merged[idx] = subject; // Override with saved version
+    } else {
+      merged.push(subject); // Add custom subjects
+    }
+  }
+
+  return merged;
+};
+
+export const setOrdinarySubjects = (v: Subject[]) => write(K.ordinarySubjects, v);
+
+export const getAdvancedSubjects = () => {
+  const saved = read<Subject[]>(K.advancedSubjects, []);
+  const defaults = buildDefaultAdvancedSubjects();
+
+  // Merge: start with defaults, then override/add from saved
+  const merged = [...defaults];
+  for (const subject of saved) {
+    const idx = merged.findIndex((s) => s.name === subject.name);
+    if (subject.deleted) {
+      if (idx >= 0) {
+        merged.splice(idx, 1);
+      }
+      continue;
+    }
+    if (idx >= 0) {
+      merged[idx] = subject; // Override with saved version
+    } else {
+      merged.push(subject); // Add custom subjects
+    }
+  }
+
+  return merged;
+};
+
+export const setAdvancedSubjects = (v: Subject[]) => write(K.advancedSubjects, v);
+
+export function addOrdinarySubject(s: Subject) {
+  const all = getOrdinarySubjects();
   if (all.some((x) => x.name.toLowerCase() === s.name.toLowerCase())) return false;
-  setSubjects([...all, s]);
+  const saved = read<Subject[]>(K.ordinarySubjects, []);
+  write(K.ordinarySubjects, [...saved, s]);
   return true;
 }
-export function deleteSubject(id: string) {
-  setSubjects(getSubjects().filter((s) => s.id !== id));
+
+export function deleteOrdinarySubject(id: string) {
+  const saved = read<Subject[]>(K.ordinarySubjects, []);
+  const defaults = buildDefaultOrdinarySubjects();
+  const subject = saved.find((s) => s.id === id) ?? defaults.find((s) => s.id === id);
+  const remaining = saved.filter((s) => s.id !== id);
+  if (subject && defaults.some((d) => d.id === subject.id)) {
+    remaining.push({ ...subject, deleted: true });
+  }
+  write(K.ordinarySubjects, remaining);
+}
+
+export function addAdvancedSubject(s: Subject) {
+  const all = getAdvancedSubjects();
+  if (all.some((x) => x.name.toLowerCase() === s.name.toLowerCase())) return false;
+  const saved = read<Subject[]>(K.advancedSubjects, []);
+  write(K.advancedSubjects, [...saved, s]);
+  return true;
+}
+
+export function deleteAdvancedSubject(id: string) {
+  const saved = read<Subject[]>(K.advancedSubjects, []);
+  const defaults = buildDefaultAdvancedSubjects();
+  const subject = saved.find((s) => s.id === id) ?? defaults.find((s) => s.id === id);
+  const remaining = saved.filter((s) => s.id !== id);
+  if (subject && defaults.some((d) => d.id === subject.id)) {
+    remaining.push({ ...subject, deleted: true });
+  }
+  write(K.advancedSubjects, remaining);
+}
+
+// Backward compat: getSubjects returns both
+export const getSubjects = () => [...getOrdinarySubjects(), ...getAdvancedSubjects()];
+export const addSubject = (s: Subject) => false; // deprecated
+export const deleteSubject = (id: string) => {}; // deprecated
+export const setSubjects = (v: Subject[]) => {}; // deprecated
+
+// === Paper Grading Configuration ===
+export function getPaperGradingConfig(subject: string): "individual" | "pairs" | "all" {
+  const configs = read<Record<string, "individual" | "pairs" | "all">>(K.paperGradingConfig, {});
+  return configs[subject] ?? "individual"; // default: grade each paper separately
+}
+
+export function setPaperGradingConfig(subject: string, mode: "individual" | "pairs" | "all") {
+  const configs = read<Record<string, "individual" | "pairs" | "all">>(K.paperGradingConfig, {});
+  configs[subject] = mode;
+  write(K.paperGradingConfig, configs);
+}
+
+export const getCombinations = () => read<Combination[]>(K.combinations, []);
+export const setCombinations = (v: Combination[]) => write(K.combinations, v);
+export function addCombination(c: Combination) {
+  const all = getCombinations();
+  if (all.some((x) => x.shortForm.toLowerCase() === c.shortForm.toLowerCase())) return false;
+  setCombinations([...all, c]);
+  return true;
+}
+export function deleteCombination(id: string) {
+  setCombinations(getCombinations().filter((c) => c.id !== id));
 }
 
 // === Marks ===
 export const getMarks = () => read<Mark[]>(K.marks, []);
 export const setMarks = (v: Mark[]) => write(K.marks, v);
 export function upsertMark(m: Mark) {
+  const normalizedMark = {
+    ...m,
+    score: typeof m.score === "number" ? roundToOneDecimal(m.score) : m.score,
+  };
   const all = getMarks();
-  const i = all.findIndex((x) => x.id === m.id);
-  if (i >= 0) all[i] = m;
-  else all.push(m);
+  const exactIndex = all.findIndex((x) => x.id === normalizedMark.id);
+  if (exactIndex >= 0) {
+    all[exactIndex] = m;
+    setMarks([...all]);
+    return;
+  }
+
+  // Preserve legacy marks by migrating old records into the new examSet-aware format.
+  const legacyIndex = all.findIndex(
+    (x) =>
+      x.studentId === m.studentId &&
+      x.term === m.term &&
+      x.subject === m.subject &&
+      x.paper === m.paper &&
+      (x.examSet === undefined || x.examSet === "EOT") &&
+      x.id === `${m.studentId}:${m.term}:${m.subject}:${m.paper}`,
+  );
+  if (legacyIndex >= 0) {
+    all[legacyIndex] = m;
+    setMarks([...all]);
+    return;
+  }
+
+  all.push(m);
   setMarks([...all]);
 }
 
@@ -167,9 +407,13 @@ export const getProjects = () => read<ProjectWork[]>(K.projects, []);
 export const setProjects = (v: ProjectWork[]) => write(K.projects, v);
 export function upsertProject(p: ProjectWork) {
   const all = getProjects();
-  const i = all.findIndex((x) => x.id === p.id);
-  if (i >= 0) all[i] = p;
-  else all.push(p);
+  const normalizedProject = {
+    ...p,
+    marks: roundToOneDecimal(p.marks),
+  };
+  const i = all.findIndex((x) => x.id === normalizedProject.id);
+  if (i >= 0) all[i] = normalizedProject;
+  else all.push(normalizedProject);
   setProjects([...all]);
 }
 
@@ -188,16 +432,16 @@ export function factoryReset() {
 export function getGradingScale(subject: string, classLevel?: string): GradeScale {
   const school = getSchool();
   const scales = school.gradingScales || {};
-  
+
   // Try specific subject:class combination first
   if (classLevel) {
     const key = `${subject}:${classLevel}`;
     if (scales[key]) return scales[key];
   }
-  
+
   // Fall back to subject-only scale
   if (scales[subject]) return scales[subject];
-  
+
   // Fall back to default based on class level
   const isAdvanced = classLevel && (classLevel === "S.5" || classLevel === "S.6");
   return isAdvanced ? defaultAdvancedScale() : defaultOrdinaryScale();
@@ -250,11 +494,11 @@ export function useStore<T>(getter: () => T): T {
   const [v, setV] = useState<T>(getter);
   useEffect(() => {
     const handler = () => setV(getter());
-    window.addEventListener("ample-storage-change", handler);
+    window.addEventListener("light-storage-change", handler);
     window.addEventListener("storage", handler);
     handler();
     return () => {
-      window.removeEventListener("ample-storage-change", handler);
+      window.removeEventListener("light-storage-change", handler);
       window.removeEventListener("storage", handler);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps

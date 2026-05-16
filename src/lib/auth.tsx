@@ -21,7 +21,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     ensureInitialized();
     setHasAccount(!!getAuth());
-    setAuthed(sessionStorage.getItem("ample_session") === "1");
+    setAuthed(sessionStorage.getItem("light_session") === "1");
   }, []);
 
   const value: AuthCtx = {
@@ -30,21 +30,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     signIn: (code) => {
       const a = getAuth();
       if (a && a.accessCode === code) {
-        sessionStorage.setItem("ample_session", "1");
+        sessionStorage.setItem("light_session", "1");
         setAuthed(true);
         return true;
       }
       return false;
     },
     signOut: () => {
-      sessionStorage.removeItem("ample_session");
+      sessionStorage.removeItem("light_session");
       setAuthed(false);
       setHasAccount(!!getAuth());
     },
     setupAccount: (info) => {
       persistAuth(info);
       setHasAccount(true);
-      sessionStorage.setItem("ample_session", "1");
+      sessionStorage.setItem("light_session", "1");
       setAuthed(true);
     },
     resetCode: (newCode) => {

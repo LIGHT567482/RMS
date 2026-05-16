@@ -11,27 +11,51 @@ export function isAdvancedLevel(level: ClassLevel) {
   return ADVANCED_LEVELS.includes(level);
 }
 
+export type SubjectLevel = "ordinary" | "advanced";
+
 export const COMPULSORY_SUBJECTS = [
-  "English", "Mathematics", "Physics", "Chemistry", "Geography", "History", "Biology",
+  "English",
+  "Mathematics",
+  "Physics",
+  "Chemistry",
+  "Geography",
+  "History",
+  "Biology",
 ];
 export const OPTIONAL_SUBJECTS = [
-  "Computer", "CRE", "IRE", "FineArt", "Entrepreneurship", "Luganda",
+  "Computer",
+  "CRE",
+  "IRE",
+  "FineArt",
+  "Entrepreneurship",
+  "Luganda",
 ];
 export const DEFAULT_SUBJECTS = [...COMPULSORY_SUBJECTS, ...OPTIONAL_SUBJECTS];
 
 // A-Level subjects (excluding English and Computer which become G.P and Sub-ICT)
 export const ADVANCED_SUBJECTS = [
-  "Physics", "Chemistry", "Mathematics", "Biology", "Geography", "History", 
-  "CRE", "IRE", "Entrepreneurship", "Luganda", "FineArt", "TechnicalDrawing",
+  "Physics",
+  "Chemistry",
+  "Mathematics",
+  "Biology",
+  "Geography",
+  "History",
+  "CRE",
+  "IRE",
+  "Entrepreneurship",
+  "Luganda",
+  "FineArt",
+  "TechnicalDrawing",
 ];
-export const ADVANCED_SUBSIDIARY_SUBJECTS = [
-  "SubsidiaryICT", "SubsidiaryMath",
-];
+export const ADVANCED_SUBSIDIARY_SUBJECTS = ["SubsidiaryICT", "SubsidiaryMath"];
+export const ADVANCED_SPECIAL_SUBJECTS = ["GeneralPaper", "SubsidiaryICT", "SubsidiaryMath"];
 // General Paper is always included, so we don't list it here
 
 export interface Student {
   id: string;
   name: string;
+  studentIdentificationNumber?: string;
+  registrationNumber?: string;
   classLevel: ClassLevel;
   gender?: Gender;
   photoDataUrl?: string;
@@ -48,24 +72,33 @@ export interface Subject {
   id: string;
   name: string;
   isOptional: boolean;
+  deleted?: boolean;
+}
+
+export interface Combination {
+  id: string;
+  name: string; // e.g., "Physics, Chemistry, Mathematics"
+  shortForm: string; // e.g., "PCM"
+  subjects: string[]; // array of subject names
 }
 
 export interface Mark {
-  id: string;            // `${studentId}:${term}:${subject}:${paper}`
+  id: string; // `${studentId}:${term}:${subject}:${paper}` or `${studentId}:${term}:${subject}:${paper}:${examSet}`
   studentId: string;
   term: Term;
   subject: string;
   paper: number;
-  score?: number;        // 0-100, paper mark
-  ca?: number;           // legacy support for old storage data
-  exam?: number;         // legacy support for old storage data
+  examSet?: ExamSet;
+  score?: number; // 0-100, paper mark
+  ca?: number; // legacy support for old storage data
+  exam?: number; // legacy support for old storage data
 }
 
 export interface ProjectWork {
-  id: string;            // `${studentId}:${term}`
+  id: string; // `${studentId}:${term}`
   studentId: string;
   term: Term;
-  marks: number;         // 0-100
+  marks: number; // 0-100
 }
 
 export interface SchoolInfo {
@@ -91,7 +124,10 @@ export interface SchoolInfo {
   reportCardContentColorAdvanced?: string;
   reportCardHeadingColorAdvanced?: string;
   reportCardColor?: string;
-  issueDate: string;     // DD/MM/YYYY
+  reportCardWatermarkColored?: boolean;
+  selectedExamSets?: ExamSet[];
+  studentIdentificationPrefix?: string;
+  issueDate: string; // DD/MM/YYYY
   bursarFeesNextTerm?: string;
   bursarDebt?: string;
   /** Grading scales per subject/class: key is "${subject}" or "${subject}:${classLevel}" */
@@ -102,24 +138,24 @@ export interface SchoolInfo {
 
 export interface GradeScale {
   /** For Ordinary Level */
-  ordinaA: number;      // >= this is A
-  ordinaB: number;      // >= this is B
-  ordinaC: number;      // >= this is C
-  ordinaD: number;      // >= this is D
+  ordinaA: number; // >= this is A
+  ordinaB: number; // >= this is B
+  ordinaC: number; // >= this is C
+  ordinaD: number; // >= this is D
   /** For Advanced Level */
-  advancedA: number;    // >= this is A
-  advancedB: number;    // >= this is B
-  advancedC: number;    // >= this is C
-  advancedD: number;    // >= this is D
-  advancedE: number;    // >= this is E
-  advancedO: number;    // >= this is O
+  advancedA: number; // >= this is A
+  advancedB: number; // >= this is B
+  advancedC: number; // >= this is C
+  advancedD: number; // >= this is D
+  advancedE: number; // >= this is E
+  advancedO: number; // >= this is O
   // Anything below advancedO is F
 }
 
 export interface AuthInfo {
-  accessCode: string;          // 5-10 digits
+  accessCode: string; // 5-10 digits
   recoveryEmail?: string;
-  recoveryPassword?: string;   // for verification
+  recoveryPassword?: string; // for verification
   securityQuestion?: string;
   securityAnswer?: string;
 }
@@ -130,25 +166,64 @@ export interface GradeInfo {
   points?: number; // For Advanced Level point system
 }
 
+export type PaperGradingMode = "individual" | "pairs" | "all";
+
+export type ExamSet = "BOT" | "MOT" | "EOT";
+export const EXAM_SETS: ExamSet[] = ["BOT", "MOT", "EOT"];
+
+export interface SubjectGradingConfig {
+  subject: string;
+  level: SubjectLevel;
+  gradingMode: PaperGradingMode; // how to group papers for grading
+}
+
 /** Get default grading scale for Ordinary Level (S.1-S.4) */
 export function defaultOrdinaryScale(): GradeScale {
   return {
-    ordinaA: 84, ordinaB: 70, ordinaC: 50, ordinaD: 36,
-    advancedA: 0, advancedB: 0, advancedC: 0, advancedD: 0, advancedE: 0, advancedO: 0, // unused
+    ordinaA: 84,
+    ordinaB: 70,
+    ordinaC: 50,
+    ordinaD: 36,
+    advancedA: 0,
+    advancedB: 0,
+    advancedC: 0,
+    advancedD: 0,
+    advancedE: 0,
+    advancedO: 0, // unused
   };
 }
 
 /** Get default grading scale for Advanced Level (S.5-S.6) */
 export function defaultAdvancedScale(): GradeScale {
   return {
-    ordinaA: 0, ordinaB: 0, ordinaC: 0, ordinaD: 0, // unused
-    advancedA: 80, advancedB: 70, advancedC: 60, advancedD: 45, advancedE: 35, advancedO: 25,
+    ordinaA: 0,
+    ordinaB: 0,
+    ordinaC: 0,
+    ordinaD: 0, // unused
+    advancedA: 80,
+    advancedB: 70,
+    advancedC: 60,
+    advancedD: 45,
+    advancedE: 35,
+    advancedO: 25,
   };
 }
 
-export function gradeFor(total: number, scale?: GradeScale, isAdvanced?: boolean): GradeInfo {
+export function gradeFor(
+  total: number,
+  scale?: GradeScale,
+  isAdvanced?: boolean,
+  subject?: string,
+): GradeInfo {
   const s = scale || (isAdvanced ? defaultAdvancedScale() : defaultOrdinaryScale());
-  
+  const specialAlevel =
+    isAdvanced && subject && ["GeneralPaper", "SubsidiaryICT", "SubsidiaryMath"].includes(subject);
+
+  if (specialAlevel) {
+    if (total >= 50) return { grade: "O", comment: "Ordinary", points: 1 };
+    return { grade: "F", comment: "Fail", points: 0 };
+  }
+
   if (isAdvanced) {
     if (total >= s.advancedA) return { grade: "A", comment: "Exceptional", points: 6 };
     if (total >= s.advancedB) return { grade: "B", comment: "Outstanding", points: 5 };
@@ -167,22 +242,50 @@ export function gradeFor(total: number, scale?: GradeScale, isAdvanced?: boolean
 }
 
 export function subjectsForStudent(student: Student, allSubjects: Subject[]): Subject[] {
-  if (student.classLevel === "S.1") return allSubjects;
+  // Filter to only subjects appropriate for the student's level
+  let levelSubjects = allSubjects.filter((s) => {
+    const isAdvanced = isAdvancedLevel(student.classLevel);
+    // For advanced students, include only advanced-level subjects
+    // For ordinary students, include only ordinary-level subjects (compulsory + optional)
+    if (isAdvanced) {
+      return (
+        ADVANCED_SUBJECTS.includes(s.name) ||
+        ADVANCED_SUBSIDIARY_SUBJECTS.includes(s.name) ||
+        s.name === "GeneralPaper"
+      );
+    } else {
+      // For ordinary: explicitly include compulsory and optional subjects
+      return COMPULSORY_SUBJECTS.includes(s.name) || OPTIONAL_SUBJECTS.includes(s.name);
+    }
+  });
+
+  // Deduplicate by subject name (keep first occurrence)
+  const seen = new Set<string>();
+  levelSubjects = levelSubjects.filter((s) => {
+    if (seen.has(s.name)) return false;
+    seen.add(s.name);
+    return true;
+  });
+
+  if (student.classLevel === "S.1") return levelSubjects;
   if (ORDINARY_LEVELS.includes(student.classLevel)) {
-    const compulsory = allSubjects.filter((s) => !s.isOptional);
+    const compulsory = levelSubjects.filter((s) => !s.isOptional);
     const chosen = (student.optionalSubjects ?? []).slice(0, 2);
-    const opts = allSubjects.filter((s) => s.isOptional && chosen.includes(s.name));
+    const opts = levelSubjects.filter((s) => s.isOptional && chosen.includes(s.name));
     return [...compulsory, ...opts];
   }
   if (ADVANCED_LEVELS.includes(student.classLevel)) {
     const enrolled = new Set(student.enrolledSubjects ?? []);
-    return allSubjects.filter((s) => enrolled.has(s.name));
+    return levelSubjects.filter((s) => enrolled.has(s.name));
   }
   return [];
 }
 
 /** Generate A-level enrollment combination from selected subjects */
-export function generateAdvancedCombination(mainSubjects: string[]): { combo: string; enrolled: string[] } {
+export function generateAdvancedCombination(mainSubjects: string[]): {
+  combo: string;
+  enrolled: string[];
+} {
   // mainSubjects should be exactly 3 main subjects
   if (mainSubjects.length !== 3) {
     return { combo: "", enrolled: [] };
@@ -192,12 +295,10 @@ export function generateAdvancedCombination(mainSubjects: string[]): { combo: st
   const subsidiary = hasmath ? "SubsidiaryICT" : "SubsidiaryMath";
   const enrolled = [...mainSubjects, "GeneralPaper", subsidiary];
 
-  // Generate combo code: first letters of main subjects + \subsidiary abbreviation
-  const mainLetters = mainSubjects
-    .map((s) => s.charAt(0).toUpperCase())
-    .join("");
-  const subAbbr = hasmath ? "ICT" : "S.M";
-  const combo = `${mainLetters}\\${subAbbr}`;
+  // Generate combo code: first letters of main subjects + /subsidiary abbreviation
+  const mainLetters = mainSubjects.map((s) => s.charAt(0).toUpperCase()).join("");
+  const subAbbr = hasmath ? "ICT" : "SM";
+  const combo = `${mainLetters}/${subAbbr}`;
 
   return { combo, enrolled };
 }
