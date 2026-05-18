@@ -83,6 +83,8 @@ function parseSubjects(value: string | undefined): string[] {
     .filter(Boolean);
 }
 
+type ExportFormat = "xlsx" | "csv" | "ods" | "xls" | "html";
+
 function deriveAdvancedEnrollmentFromSubjects(subjects: string[]) {
   const normalized = subjects.map((s) => s.trim()).filter(Boolean);
   const hasGeneralPaper = normalized.includes("GeneralPaper");
@@ -258,6 +260,7 @@ function StudentsPage() {
     classLevel: true,
     subjects: true,
   });
+  const [exportFormat, setExportFormat] = useState<ExportFormat>("xlsx");
   const [importRows, setImportRows] = useState<ImportRow[]>([]);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -324,6 +327,14 @@ function StudentsPage() {
 
   const subjectsHeader = hasAdvancedStudents && !hasOrdinaryStudents ? "Combination" : "Subjects";
 
+  const filtersApplied =
+    (searchQuery.trim() !== "") ||
+    classFilter !== "All" ||
+    levelFilter !== "All" ||
+    genderFilter !== "All" ||
+    subjectFilter !== "All" ||
+    (String(levelFilter) === "Advanced" && combinationFilter !== "All");
+
   const normalizeGender = (value: string | undefined): Gender | undefined => {
     if (!value) return undefined;
     const normalized = String(value).trim().toLowerCase();
@@ -350,7 +361,7 @@ function StudentsPage() {
       return row;
     });
 
-  const downloadWorkbook = (bookType: "xlsx" | "csv" | "ods") => {
+  const downloadWorkbook = (bookType: ExportFormat) => {
     const rows = buildExportRows();
     if (!rows.length) {
       toast.error("No students match the selected filters to export.");
@@ -367,12 +378,19 @@ function StudentsPage() {
 
     const writeOptions: XLSX.WritingOptions = {
       bookType,
-      type: bookType === "csv" ? "string" : "array",
+      type: bookType === "csv" || bookType === "html" ? "string" : "array",
     };
     const data = XLSX.write(workbook, writeOptions);
 
-    const blob = new Blob([bookType === "csv" ? data : new Uint8Array(data as ArrayBuffer)], {
-      type: bookType === "csv" ? "text/csv;charset=utf-8;" : "application/octet-stream",
+    const mimeType =
+      bookType === "csv"
+        ? "text/csv;charset=utf-8;"
+        : bookType === "html"
+        ? "text/html;charset=utf-8;"
+        : "application/octet-stream";
+
+    const blob = new Blob([bookType === "csv" || bookType === "html" ? data : new Uint8Array(data as ArrayBuffer)], {
+      type: mimeType,
     });
 
     const link = document.createElement("a");
@@ -533,9 +551,7 @@ function StudentsPage() {
       <div className="flex items-end justify-between gap-4 flex-wrap">
         <div>
           <h1 className="font-display text-3xl">Students</h1>
-          <p className="text-muted-foreground">
-            Enroll, edit, and manage student records. ({filtered.length})
-          </p>
+          <p className="text-muted-foreground">Enroll, edit, and manage student records. ({filtered.length})</p>
         </div>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
@@ -563,312 +579,310 @@ function StudentsPage() {
         aria-label="Import students file"
       />
 
-      <Card className="p-4 grid gap-3 sm:grid-cols-[minmax(240px,_1fr)_minmax(240px,_1fr)] items-center">
-        <div className="space-y-3">
-          <div className="flex flex-wrap gap-2">
-            <Button variant="outline" size="sm" onClick={() => downloadWorkbook("xlsx")}>
-              <Download className="h-4 w-4 mr-1" /> Export .xlsx
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => downloadWorkbook("csv")}>
-              <Download className="h-4 w-4 mr-1" /> Export .csv
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => downloadWorkbook("ods")}>
-              <Download className="h-4 w-4 mr-1" /> Export .ods
-            </Button>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {Object.entries(exportFields).map(([key, selected]) => (
-              <label key={key} className="inline-flex items-center gap-2 text-sm">
-                <Checkbox checked={selected} onCheckedChange={() => updateExportField(key)} />
-                {key === "name"
-                  ? "Name"
-                  : key === "studentIdentificationNumber"
-                    ? "Student ID"
-                    : key === "registrationNumber"
-                      ? "Registration Number"
-                      : key === "gender"
-                        ? "Gender"
-                        : key === "classLevel"
-                          ? "Class"
-                          : "Subjects"}
-              </label>
-            ))}
-          </div>
+      <div className="grid gap-6 lg:grid-cols-[minmax(320px,1fr)_minmax(0,3fr)]">
+        <div className="sticky top-4 self-start space-y-4">
+          <Card className="p-4 space-y-3">
+            <div>
+              <Label className="text-xs mb-2 block">Search</Label>
+              <Input
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search name or registration"
+                className="h-8 text-sm"
+              />
+            </div>
+
+            <div>
+              <Label className="text-xs mb-2 block">Export Format</Label>
+              <Select value={exportFormat} onValueChange={(v) => setExportFormat(v as ExportFormat)}>
+                <SelectTrigger className="h-8 text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="xlsx">.xlsx (Excel)</SelectItem>
+                  <SelectItem value="xls">.xls (Excel 97-2003)</SelectItem>
+                  <SelectItem value="csv">.csv (Spreadsheet)</SelectItem>
+                  <SelectItem value="ods">.ods (LibreOffice)</SelectItem>
+                  <SelectItem value="html">.html (Web table)</SelectItem>
+                </SelectContent>
+              </Select>
+              <div className="mt-3">
+                <Button variant="outline" size="sm" onClick={() => downloadWorkbook(exportFormat)}>
+                  <Download className="h-4 w-4 mr-1" /> Export students
+                </Button>
+              </div>
+            </div>
+
+            <div>
+              <Label className="text-xs mb-2 block">Class</Label>
+              <Select value={classFilter} onValueChange={(v) => setClassFilter(v as "All" | ClassLevel)}>
+                <SelectTrigger className="h-8 text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="All">All classes</SelectItem>
+                  {ALL_CLASSES.map((c) => (
+                    <SelectItem key={c} value={c}>
+                      {c}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label className="text-xs mb-2 block">Level</Label>
+              <Select
+                value={levelFilter}
+                onValueChange={(v) => setLevelFilter(v as "All" | "Ordinary" | "Advanced")}
+                disabled={classFilter !== "All"}
+              >
+                <SelectTrigger className="h-8 text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="All">All levels</SelectItem>
+                  <SelectItem value="Ordinary">Ordinary Level</SelectItem>
+                  <SelectItem value="Advanced">Advanced Level</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label className="text-xs mb-2 block">Gender</Label>
+              <Select value={genderFilter} onValueChange={(v) => setGenderFilter(v as "All" | Gender)}>
+                <SelectTrigger className="h-8 text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="All">All</SelectItem>
+                  <SelectItem value="Male">Male</SelectItem>
+                  <SelectItem value="Female">Female</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label className="text-xs mb-2 block">Subject Enrolled</Label>
+              <Select value={subjectFilter} onValueChange={(v) => setSubjectFilter(v)}>
+                <SelectTrigger className="h-8 text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="All">All</SelectItem>
+                  {allSubjectOptions.map((sub) => (
+                    <SelectItem key={sub} value={sub}>
+                      {sub}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {levelFilter === "Advanced" && (
+              <div>
+                <Label className="text-xs mb-2 block">Combination</Label>
+                <Select value={combinationFilter} onValueChange={(v) => setCombinationFilter(v)}>
+                  <SelectTrigger className="h-8 text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="All">All</SelectItem>
+                    {allCombinations.map((combo) => (
+                      <SelectItem key={combo} value={combo}>
+                        {combo}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            <div>
+              <Label className="text-xs mb-2 block">Import</Label>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
+                  <Upload className="h-4 w-4 mr-1" /> Import students
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground mt-2">
+                Use `.xlsx`, `.csv`, or `.ods` files. Required columns: Name, Registration Number,
+                Gender, Class, Subjects.
+              </p>
+              <div className="mt-3">
+                <Button variant="outline" size="sm" onClick={applyImport} disabled={!importRows.length}>
+                  <Upload className="h-4 w-4 mr-1" /> Apply imported rows
+                </Button>
+              </div>
+            </div>
+
+            <div>
+              <Label className="text-xs mb-2 block">&nbsp;</Label>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 text-sm"
+                onClick={() => {
+                  setClassFilter("All");
+                  setLevelFilter("All");
+                  setGenderFilter("All");
+                  setSubjectFilter("All");
+                  setCombinationFilter("All");
+                  setSearchQuery("");
+                }}
+              >
+                Reset filters
+              </Button>
+            </div>
+          </Card>
         </div>
-        <div className="space-y-3">
-          <div className="flex flex-wrap gap-2 items-center">
-            <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
-              <Upload className="h-4 w-4 mr-1" /> Import students
-            </Button>
-            <Button variant="outline" size="sm" onClick={applyImport} disabled={!importRows.length}>
-              <Upload className="h-4 w-4 mr-1" /> Apply imported rows
-            </Button>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Use `.xlsx`, `.csv`, or `.ods` files. Required columns: Name, Registration Number,
-            Gender, Class, Subjects.
+
+        <div className="space-y-6">
+          {importRows.length > 0 && (
+            <Card className="overflow-x-auto">
+              <div className="p-4 border-b flex items-center justify-between gap-3 flex-wrap">
+                <div>
+                  <p className="font-semibold">Import preview</p>
+                  <p className="text-sm text-muted-foreground">Confirm or uncheck any rows before importing.</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button variant="outline" size="sm" onClick={() => setImportRows([])}>
+                    Cancel preview
+                  </Button>
+                  <Button size="sm" onClick={applyImport}>
+                    Apply selected rows
+                  </Button>
+                </div>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-secondary text-secondary-foreground">
+                    <tr>
+                      <th className="p-3 text-left">Import</th>
+                      <th className="p-3 text-left">Name</th>
+                      <th className="p-3 text-left">Student ID</th>
+                      <th className="p-3 text-left">Registration</th>
+                      <th className="p-3 text-left">Gender</th>
+                      <th className="p-3 text-left">Class</th>
+                      <th className="p-3 text-left">Subjects</th>
+                      <th className="p-3 text-left">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {importRows.map((row) => (
+                      <tr key={row.id} className="border-t hover:bg-accent/10">
+                        <td className="p-3">
+                          <Checkbox checked={row.selected} onCheckedChange={() => toggleImportRow(row.id)} />
+                        </td>
+                        <td className="p-3">{row.name}</td>
+                        <td className="p-3">{row.studentIdentificationNumber || "-"}</td>
+                        <td className="p-3">{row.registrationNumber || "-"}</td>
+                        <td className="p-3">{row.gender ?? "-"}</td>
+                        <td className="p-3">{row.classLevel ?? "-"}</td>
+                        <td className="p-3">{row.subjects}</td>
+                        <td className="p-3 text-xs text-muted-foreground">{row.errors.length > 0 ? row.errors.join(" ") : "Ready"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+          )}
+
+          {!filtersApplied ? (
+            <Card className="p-12 text-center text-muted-foreground">
+              <UserCircle2 className="h-12 w-12 mx-auto mb-3 opacity-40" />
+              <p>Use the search or filters on the left to display students.</p>
+            </Card>
+          ) : filtered.length === 0 ? (
+            <Card className="p-12 text-center text-muted-foreground">
+              <UserCircle2 className="h-12 w-12 mx-auto mb-3 opacity-40" />
+              <p>No students match the selected filters.</p>
+            </Card>
+          ) : (
+            <Card className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-secondary text-secondary-foreground">
+                  <tr>
+                    <th className="p-3 text-left">Name</th>
+                    <th className="p-3 text-left">Class</th>
+                    <th className="p-3 text-left">Student ID</th>
+                    <th className="p-3 text-left">Gender</th>
+                    <th className="p-3 text-left">{subjectsHeader}</th>
+                    <th className="p-3 text-left">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.map((s) => (
+                    <tr key={s.id} className="border-t hover:bg-accent/10">
+                      <td className="p-3 font-medium">{s.name}</td>
+                      <td className="p-3">{s.classLevel}</td>
+                      <td className="p-3">
+                        <div>{s.studentIdentificationNumber ?? "-"}</div>
+                        {s.registrationNumber ? (
+                          <div className="text-muted-foreground text-xs">Reg: {s.registrationNumber}</div>
+                        ) : null}
+                      </td>
+                      <td className="p-3">{s.gender ?? "-"}</td>
+                      <td className="p-3">
+                        {ORDINARY_LEVELS.includes(s.classLevel)
+                          ? getStudentOptionalSubjects(s).join(", ") || "No optionals"
+                          : (getStudentCombo(s, combinations) ?? s.enrolledSubjects?.join(", ")) ||
+                            "Not set"}
+                      </td>
+                      <td className="p-3">
+                        <div className="flex gap-2">
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => {
+                              setEditing(s);
+                              setOpen(true);
+                            }}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button size="icon" variant="ghost">
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Delete {s.name}?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  This permanently removes the student and all their marks and project
+                                  records.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction
+                                  onClick={() => {
+                                    deleteStudent(s.id);
+                                    toast.success("Student deleted.");
+                                  }}
+                                >
+                                  Delete
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </Card>
+          )}
+
+          <p className="text-xs text-muted-foreground text-center">
+            {Array.from(new Set(subjects.map((subject) => subject.name.toLowerCase()))).length} unique subjects in catalog
           </p>
         </div>
-      </Card>
-
-      <div className="flex gap-2 items-end flex-wrap">
-        <div className="min-w-32">
-          <Label className="text-xs mb-2 block">Class</Label>
-          <Select
-            value={classFilter}
-            onValueChange={(v) => setClassFilter(v as "All" | ClassLevel)}
-          >
-            <SelectTrigger className="h-8 text-sm">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="All">All classes</SelectItem>
-              {ALL_CLASSES.map((c) => (
-                <SelectItem key={c} value={c}>
-                  {c}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="min-w-32">
-          <Label className="text-xs mb-2 block">Level</Label>
-          <Select
-            value={levelFilter}
-            onValueChange={(v) => setLevelFilter(v as "All" | "Ordinary" | "Advanced")}
-            disabled={classFilter !== "All"}
-          >
-            <SelectTrigger className="h-8 text-sm">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="All">All levels</SelectItem>
-              <SelectItem value="Ordinary">Ordinary Level</SelectItem>
-              <SelectItem value="Advanced">Advanced Level</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="min-w-32">
-          <Label className="text-xs mb-2 block">Gender</Label>
-          <Select value={genderFilter} onValueChange={(v) => setGenderFilter(v as "All" | Gender)}>
-            <SelectTrigger className="h-8 text-sm">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="All">All</SelectItem>
-              <SelectItem value="Male">Male</SelectItem>
-              <SelectItem value="Female">Female</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="min-w-40">
-          <Label className="text-xs mb-2 block">Search</Label>
-          <Input
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search name or registration"
-            className="h-8 text-sm"
-          />
-        </div>
-        <div className="min-w-40">
-          <Label className="text-xs mb-2 block">Subject Enrolled</Label>
-          <Select value={subjectFilter} onValueChange={(v) => setSubjectFilter(v)}>
-            <SelectTrigger className="h-8 text-sm">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="All">All</SelectItem>
-              {allSubjectOptions.map((sub) => (
-                <SelectItem key={sub} value={sub}>
-                  {sub}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        {levelFilter === "Advanced" && (
-          <div className="min-w-32">
-            <Label className="text-xs mb-2 block">Combination</Label>
-            <Select value={combinationFilter} onValueChange={(v) => setCombinationFilter(v)}>
-              <SelectTrigger className="h-8 text-sm">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="All">All</SelectItem>
-                {allCombinations.map((combo) => (
-                  <SelectItem key={combo} value={combo}>
-                    {combo}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        )}
-        <div>
-          <Label className="text-xs mb-2 block">&nbsp;</Label>
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-8 text-sm"
-            onClick={() => {
-              setClassFilter("All");
-              setLevelFilter("All");
-              setGenderFilter("All");
-              setSubjectFilter("All");
-              setCombinationFilter("All");
-            }}
-          >
-            Reset filters
-          </Button>
-        </div>
       </div>
-
-      {importRows.length > 0 && (
-        <Card className="overflow-x-auto">
-          <div className="p-4 border-b flex items-center justify-between gap-3 flex-wrap">
-            <div>
-              <p className="font-semibold">Import preview</p>
-              <p className="text-sm text-muted-foreground">
-                Confirm or uncheck any rows before importing.
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Button variant="outline" size="sm" onClick={() => setImportRows([])}>
-                Cancel preview
-              </Button>
-              <Button size="sm" onClick={applyImport}>
-                Apply selected rows
-              </Button>
-            </div>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-secondary text-secondary-foreground">
-                <tr>
-                  <th className="p-3 text-left">Import</th>
-                  <th className="p-3 text-left">Name</th>
-                  <th className="p-3 text-left">Student ID</th>
-                  <th className="p-3 text-left">Registration</th>
-                  <th className="p-3 text-left">Gender</th>
-                  <th className="p-3 text-left">Class</th>
-                  <th className="p-3 text-left">Subjects</th>
-                  <th className="p-3 text-left">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {importRows.map((row) => (
-                  <tr key={row.id} className="border-t hover:bg-accent/10">
-                    <td className="p-3">
-                      <Checkbox
-                        checked={row.selected}
-                        onCheckedChange={() => toggleImportRow(row.id)}
-                      />
-                    </td>
-                    <td className="p-3">{row.name}</td>
-                    <td className="p-3">{row.studentIdentificationNumber || "-"}</td>
-                    <td className="p-3">{row.registrationNumber || "-"}</td>
-                    <td className="p-3">{row.gender ?? "-"}</td>
-                    <td className="p-3">{row.classLevel ?? "-"}</td>
-                    <td className="p-3">{row.subjects}</td>
-                    <td className="p-3 text-xs text-muted-foreground">
-                      {row.errors.length > 0 ? row.errors.join(" ") : "Ready"}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Card>
-      )}
-
-      {filtered.length === 0 ? (
-        <Card className="p-12 text-center text-muted-foreground">
-          <UserCircle2 className="h-12 w-12 mx-auto mb-3 opacity-40" />
-          <p>No students enrolled yet.</p>
-        </Card>
-      ) : (
-        <Card className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-secondary text-secondary-foreground">
-              <tr>
-                <th className="p-3 text-left">Name</th>
-                <th className="p-3 text-left">Class</th>
-                <th className="p-3 text-left">Student ID</th>
-                <th className="p-3 text-left">Gender</th>
-                <th className="p-3 text-left">{subjectsHeader}</th>
-                <th className="p-3 text-left">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((s) => (
-                <tr key={s.id} className="border-t hover:bg-accent/10">
-                  <td className="p-3 font-medium">{s.name}</td>
-                  <td className="p-3">{s.classLevel}</td>
-                  <td className="p-3">
-                    <div>{s.studentIdentificationNumber ?? "-"}</div>
-                    {s.registrationNumber ? (
-                      <div className="text-muted-foreground text-xs">
-                        Reg: {s.registrationNumber}
-                      </div>
-                    ) : null}
-                  </td>
-                  <td className="p-3">{s.gender ?? "-"}</td>
-                  <td className="p-3">
-                    {ORDINARY_LEVELS.includes(s.classLevel)
-                      ? getStudentOptionalSubjects(s).join(", ") || "No optionals"
-                      : (getStudentCombo(s, combinations) ?? s.enrolledSubjects?.join(", ")) ||
-                        "Not set"}
-                  </td>
-                  <td className="p-3">
-                    <div className="flex gap-2">
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => {
-                          setEditing(s);
-                          setOpen(true);
-                        }}
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button size="icon" variant="ghost">
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Delete {s.name}?</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              This permanently removes the student and all their marks and project
-                              records.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction
-                              onClick={() => {
-                                deleteStudent(s.id);
-                                toast.success("Student deleted.");
-                              }}
-                            >
-                              Delete
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </Card>
-      )}
-      <p className="text-xs text-muted-foreground text-center">
-        {Array.from(new Set(subjects.map((subject) => subject.name.toLowerCase()))).length} unique subjects in catalog
-      </p>
     </div>
   );
 }

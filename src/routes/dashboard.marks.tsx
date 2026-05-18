@@ -56,12 +56,12 @@ function MarksPage() {
   const advancedSubjects = useStore(getAdvancedSubjects);
   const marks = useStore(getMarks);
 
-  const [levelGroup, setLevelGroup] = useState<"ordinary" | "advanced">("ordinary");
-  const [classLevel, setClassLevel] = useState<ClassLevel>(ORDINARY_LEVELS[0]);
-  const [term, setTerm] = useState<Term>("Term 1");
+  const [levelGroup, setLevelGroup] = useState<"all" | "ordinary" | "advanced">("all");
+  const [classLevel, setClassLevel] = useState<ClassLevel | "all">("all");
+  const [term, setTerm] = useState<Term | "">("" as any);
   const [subjectName, setSubjectName] = useState<string>("");
-  const [paperNumber, setPaperNumber] = useState(1);
-  const [examSet, setExamSet] = useState<ExamSet>("EOT");
+  const [paperNumber, setPaperNumber] = useState<number | "all">("all");
+  const [examSet, setExamSet] = useState<ExamSet | "all">("all");
   const [draft, setDraft] = useState<Record<string, string>>({});
   const [importRows, setImportRows] = useState<ImportMarkRow[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -77,15 +77,26 @@ function MarksPage() {
     return Math.round(parseFloat(value.trim().replace(/,/g, ".")) * 10) / 10;
   }
 
-  const availableClassLevels = levelGroup === "advanced" ? ADVANCED_LEVELS : ORDINARY_LEVELS;
+  const availableClassLevels =
+    levelGroup === "advanced"
+      ? ADVANCED_LEVELS
+      : levelGroup === "ordinary"
+      ? ORDINARY_LEVELS
+      : [...ORDINARY_LEVELS, ...ADVANCED_LEVELS];
+
+  const actualClassLevel = classLevel === "all" ? "" : classLevel;
 
   const subjectPaperCount = useMemo(
-    () => getSubjectPapers(subjectName, levelGroup === "advanced" ? "A" : "O"),
+    () => (subjectName ? getSubjectPapers(subjectName, levelGroup === "advanced" ? "A" : levelGroup === "ordinary" ? "O" : "O") : 0),
     [subjectName, levelGroup],
   );
 
   const availableSubjects = useMemo(() => {
-    return levelGroup === "ordinary" ? ordinarySubjects : advancedSubjects;
+    return levelGroup === "ordinary"
+      ? ordinarySubjects
+      : levelGroup === "advanced"
+      ? advancedSubjects
+      : [...ordinarySubjects, ...advancedSubjects];
   }, [levelGroup, ordinarySubjects, advancedSubjects]);
 
   // Combined subjects for student enrollment checks
@@ -94,24 +105,24 @@ function MarksPage() {
     [ordinarySubjects, advancedSubjects],
   );
 
+  const filtersApplied =
+    subjectName !== "" && paperNumber !== "all";
+
   useEffect(() => {
-    if (!availableClassLevels.includes(classLevel)) {
-      setClassLevel(availableClassLevels[0]);
+    if (classLevel !== "all" && !availableClassLevels.includes(classLevel as ClassLevel)) {
+      setClassLevel("all");
     }
   }, [availableClassLevels, classLevel]);
 
   useEffect(() => {
-    if (
-      availableSubjects.length &&
-      (!subjectName || !availableSubjects.some((s) => s.name === subjectName))
-    ) {
-      setSubjectName(availableSubjects[0].name);
+    if (subjectName && !availableSubjects.some((s) => s.name === subjectName)) {
+      setSubjectName("");
     }
-  }, [availableSubjects]);
+  }, [availableSubjects, subjectName]);
 
   useEffect(() => {
-    if (paperNumber > subjectPaperCount) {
-      setPaperNumber(1);
+    if (paperNumber !== "all" && paperNumber > subjectPaperCount) {
+      setPaperNumber("all");
     }
     // Changing any selection invalidates previously set import context
     setImportContextSet(false);
@@ -122,7 +133,7 @@ function MarksPage() {
   }, [classLevel, subjectName, term, examSet, levelGroup]);
 
   const studentsInClass = useMemo(
-    () => students.filter((s) => s.classLevel === classLevel),
+    () => (classLevel === "all" ? students : students.filter((s) => s.classLevel === classLevel as ClassLevel)),
     [students, classLevel],
   );
 
@@ -151,7 +162,10 @@ function MarksPage() {
   }
 
   function saveAll() {
-    if (!subjectName) return;
+    if (!subjectName) return toast.error("Select a subject first.");
+    if (!term) return toast.error("Select term first.");
+    if (paperNumber === "all") return toast.error("Select a paper first.");
+    if (examSet === "all") return toast.error("Select an exam set first.");
     let count = 0;
     for (const student of studentsInClass) {
       const allowed = subjectsForStudent(student, allSubjects).some((s) => s.name === subjectName);
@@ -180,6 +194,10 @@ function MarksPage() {
   }
 
   const downloadMarksWorkbook = (format: "xlsx" | "csv" | "ods" = "xlsx") => {
+    if (!subjectName) return toast.error("Select a subject first.");
+    if (!term) return toast.error("Select term first.");
+    if (paperNumber === "all") return toast.error("Select a paper first.");
+    if (examSet === "all") return toast.error("Select an exam set first.");
     const rows = studentsInClass
       .filter((s) => subjectsForStudent(s, allSubjects).some((sub) => sub.name === subjectName))
       .map((student) => ({
@@ -361,322 +379,338 @@ function MarksPage() {
         aria-label="Import marks file"
       />
 
-      <Card className="p-5 grid grid-cols-1 sm:grid-cols-6 gap-4">
-        <div>
-          <Label>Level</Label>
-          <Select
-            value={levelGroup}
-            onValueChange={(v) => setLevelGroup(v as "ordinary" | "advanced")}
-          >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="ordinary">Ordinary Level (S.1–S.4)</SelectItem>
-              <SelectItem value="advanced">Advanced Level (S.5–S.6)</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div>
-          <Label>Class</Label>
-          <Select value={classLevel} onValueChange={(v) => setClassLevel(v as ClassLevel)}>
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {availableClassLevels.map((level) => (
-                <SelectItem key={level} value={level}>
-                  {level}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div>
-          <Label>Subject</Label>
-          <Select value={subjectName} onValueChange={setSubjectName}>
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {availableSubjects.map((subj) => (
-                <SelectItem key={subj.id} value={subj.name}>
-                  {displaySubjectName(subj.name)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div>
-          <Label>Term</Label>
-          <Select value={term} onValueChange={(v) => setTerm(v as Term)}>
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {ALL_TERMS.map((t) => (
-                <SelectItem key={t} value={t}>
-                  {t}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div>
-          <Label>Paper</Label>
-          <Select value={String(paperNumber)} onValueChange={(v) => setPaperNumber(Number(v))}>
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {Array.from({ length: subjectPaperCount }, (_, idx) => idx + 1).map((num) => (
-                <SelectItem key={num} value={String(num)}>
-                  Paper {num}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div>
-          <Label>Exam Set</Label>
-          <Select value={examSet} onValueChange={(v) => setExamSet(v as ExamSet)}>
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {EXAM_SETS.map((set) => (
-                <SelectItem key={set} value={set}>
-                  {set}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div>
-          <Label htmlFor="search-marks" className="text-sm">
-            Search Students
-          </Label>
-          <Input
-            id="search-marks"
-            type="text"
-            placeholder="Search by name or registration number..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
-          {searchQuery && (
-            <p className="text-xs text-muted-foreground mt-2">
-              Found {filteredStudents.length} of {studentsInClass.length} student
-              {studentsInClass.length === 1 ? "" : "s"}
-            </p>
-          )}
-        </div>
-      </Card>
-
-      <Card className="p-4 flex flex-wrap gap-2 items-center">
-        <div className="flex gap-2 items-end flex-wrap flex-1">
-          <div>
-            <Label className="text-xs block mb-1">Export Format</Label>
-            <Select
-              value={exportFormat}
-              onValueChange={(v) => setExportFormat(v as "xlsx" | "csv" | "ods")}
-            >
-              <SelectTrigger className="w-32">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="xlsx">.xlsx (Excel)</SelectItem>
-                <SelectItem value="csv">.csv (Spreadsheet)</SelectItem>
-                <SelectItem value="ods">.ods (LibreOffice)</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <Button onClick={() => downloadMarksWorkbook(exportFormat)} variant="outline" size="sm">
-            <Download className="h-4 w-4 mr-1" /> Export Marks
-          </Button>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant={importContextSet ? "default" : "outline"}
-            size="sm"
-            onClick={() => {
-              // validate selections
-              if (!classLevel) return toast.error("Select class before setting import context.");
-              if (!subjectName) return toast.error("Select subject before setting import context.");
-              if (paperNumber < 1 || paperNumber > subjectPaperCount)
-                return toast.error("Choose a valid paper number for the selected subject.");
-              if (!term) return toast.error("Select term before setting import context.");
-              if (!examSet) return toast.error("Select exam set before setting import context.");
-              setImportContextSet(true);
-              toast.success(
-                `Import context set: ${classLevel} • ${subjectName} • Paper ${paperNumber} • ${term} • ${examSet}`,
-              );
-            }}
-          >
-            {importContextSet ? "Import Context Set" : "Set Import Context"}
-          </Button>
-
-          <Button
-            onClick={() => fileInputRef.current?.click()}
-            variant="outline"
-            size="sm"
-            disabled={!importContextSet}
-            title={!importContextSet ? "Set import context first" : "Select file to import"}
-          >
-            <Upload className="h-4 w-4 mr-1" /> Import Marks
-          </Button>
-
-          <Button
-            onClick={applyImport}
-            variant="outline"
-            size="sm"
-            disabled={!importContextSet || !importRows.length}
-            title={!importContextSet ? "Set import context before applying" : "Apply imported rows"}
-          >
-            <Upload className="h-4 w-4 mr-1" /> Apply Imported
-          </Button>
-        </div>
-      </Card>
-
-      {importRows.length > 0 && (
-        <Card className="overflow-x-auto">
-          <div className="p-4 border-b flex items-center justify-between gap-3 flex-wrap">
+      <div className="grid gap-6 lg:grid-cols-[minmax(320px,1fr)_minmax(0,3fr)]">
+        <div className="sticky top-4 self-start space-y-5">
+          <Card className="p-5 grid grid-cols-1 gap-4">
             <div>
-              <p className="font-semibold">Import preview</p>
-              <p className="text-sm text-muted-foreground">
-                Confirm or uncheck any rows before importing.
-              </p>
+              <Label>Level</Label>
+              <Select
+                value={levelGroup}
+                onValueChange={(v) => setLevelGroup(v as "" | "ordinary" | "advanced")}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="All levels" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All levels</SelectItem>
+                  <SelectItem value="ordinary">Ordinary Level (S.1–S.4)</SelectItem>
+                  <SelectItem value="advanced">Advanced Level (S.5–S.6)</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
-            <div className="flex flex-wrap gap-2">
-              <Button variant="outline" size="sm" onClick={() => setImportRows([])}>
-                Cancel preview
-              </Button>
-              <Button size="sm" onClick={applyImport}>
-                Apply selected rows
-              </Button>
+            <div>
+              <Label>Class</Label>
+              <Select value={classLevel} onValueChange={(v) => setClassLevel(v as ClassLevel | "all")}>
+                <SelectTrigger>
+                  <SelectValue placeholder="All classes" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All classes</SelectItem>
+                  {availableClassLevels.map((level) => (
+                    <SelectItem key={level} value={level}>
+                      {level}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-secondary text-secondary-foreground">
-                <tr>
-                  <th className="p-3 text-left">Import</th>
-                  <th className="p-3 text-left">Name</th>
-                  <th className="p-3 text-left">Registration</th>
-                  <th className="p-3 text-left">Score</th>
-                  <th className="p-3 text-left">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {importRows.map((row) => (
-                  <tr key={row.id} className="border-t hover:bg-accent/10">
-                    <td className="p-3">
-                      <input
-                        type="checkbox"
-                        checked={row.selected}
-                        onChange={() => toggleImportRow(row.id)}
-                        className="w-4 h-4"
-                        aria-label={`Select row for ${row.name}`}
-                      />
-                    </td>
-                    <td className="p-3">{row.name}</td>
-                    <td className="p-3">{row.registrationNumber}</td>
-                    <td className="p-3">{row.score}</td>
-                    <td className="p-3 text-xs text-muted-foreground">
-                      {row.errors.length > 0 ? row.errors.join("; ") : "Ready"}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Card>
-      )}
+            <div>
+              <Label>Subject</Label>
+              <Select value={subjectName} onValueChange={setSubjectName}>
+                <SelectTrigger>
+                  <SelectValue placeholder="All subjects" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all-subjects">All subjects</SelectItem>
+                  {availableSubjects.map((subj) => (
+                    <SelectItem key={subj.id} value={subj.name}>
+                      {displaySubjectName(subj.name)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Term</Label>
+              <Select value={term || ""} onValueChange={(v) => setTerm(v as Term) }>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select term" />
+                </SelectTrigger>
+                <SelectContent>
+                  {ALL_TERMS.map((t) => (
+                    <SelectItem key={t} value={t}>
+                      {t}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Paper</Label>
+              <Select value={String(paperNumber)} onValueChange={(v) => setPaperNumber(v === "all" ? "all" : Number(v))}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select paper" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All papers</SelectItem>
+                  {Array.from({ length: subjectPaperCount }, (_, idx) => idx + 1).map((num) => (
+                    <SelectItem key={num} value={String(num)}>
+                      Paper {num}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Exam Set</Label>
+              <Select value={examSet} onValueChange={(v) => setExamSet(v as ExamSet | "all") }>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select exam set" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All exam sets</SelectItem>
+                  {EXAM_SETS.map((set) => (
+                    <SelectItem key={set} value={set}>
+                      {set}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label htmlFor="search-marks" className="text-sm">
+                Search Students
+              </Label>
+              <Input
+                id="search-marks"
+                type="text"
+                placeholder="Search by name or registration number..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+              {searchQuery && (
+                <p className="text-xs text-muted-foreground mt-2">
+                  Found {filteredStudents.length} of {studentsInClass.length} student
+                  {studentsInClass.length === 1 ? "" : "s"}
+                </p>
+              )}
+            </div>
+          </Card>
 
-      {students.length === 0 ? (
-        <Card className="p-10 text-center text-muted-foreground">
-          Enroll students first before entering marks.
-        </Card>
-      ) : (
-        <>
-          <Card className="overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-secondary text-secondary-foreground">
-                  <tr>
-                    <th className="text-left p-3">Student</th>
-                    <th className="text-left p-3">Class</th>
-                    <th className="text-left p-3 w-32">Paper</th>
-                    <th className="text-left p-3 w-32">Exam Set</th>
-                    <th className="text-left p-3 w-32">Score / 100</th>
-                    <th className="text-left p-3 w-24">Latest</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredStudents.length === 0 ? (
-                    <tr>
-                      <td colSpan={5} className="p-6 text-center text-muted-foreground">
-                        {searchQuery
-                          ? `No students match "${searchQuery}"`
-                          : `No students enrolled in ${classLevel} yet.`}
-                      </td>
-                    </tr>
-                  ) : (
-                    filteredStudents.map((student) => {
-                      const hasSubject = subjectsForStudent(student, allSubjects).some(
-                        (s) => s.name === subjectName,
-                      );
-                      return (
-                        <tr key={student.id} className="border-t hover:bg-accent/20">
-                          <td className="p-3 font-medium">{student.name}</td>
-                          <td className="p-3">{student.classLevel}</td>
-                          <td className="p-3">Paper {paperNumber}</td>
-                          <td className="p-3">{examSet}</td>
-                          <td className="p-2">
-                            <Input
-                              type="number"
-                              min={0}
-                              max={100}
-                              step="0.1"
-                              disabled={!hasSubject}
-                              value={hasSubject ? value(student.id) : ""}
-                              placeholder={hasSubject ? "" : "N/A"}
-                              onChange={(e) => setVal(student.id, e.target.value)}
-                            />
-                          </td>
-                          <td className="p-3 font-mono">
-                            {hasSubject
-                              ? (() => {
-                                  const existing = marks
-                                    .filter(
-                                      (m) =>
-                                        m.studentId === student.id &&
-                                        m.term === term &&
-                                        m.subject === subjectName,
-                                    )
-                                    .sort((a, b) => a.paper - b.paper);
-                                  const last = existing[existing.length - 1];
-                                  if (!last) return "—";
-                                  return last.score !== undefined
-                                    ? last.score.toFixed(1)
-                                    : ((last.ca ?? 0) + (last.exam ?? 0)).toFixed(1);
-                                })()
-                              : "N/A"}
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
+          <Card className="p-4 flex flex-wrap gap-2 items-center">
+            <div className="flex gap-2 items-end flex-wrap flex-1">
+              <div>
+                <Label className="text-xs block mb-1">Export Format</Label>
+                <Select
+                  value={exportFormat}
+                  onValueChange={(v) => setExportFormat(v as "xlsx" | "csv" | "ods")}
+                >
+                  <SelectTrigger className="w-32">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="xlsx">.xlsx (Excel)</SelectItem>
+                    <SelectItem value="csv">.csv (Spreadsheet)</SelectItem>
+                    <SelectItem value="ods">.ods (LibreOffice)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button onClick={() => downloadMarksWorkbook(exportFormat)} variant="outline" size="sm">
+                <Download className="h-4 w-4 mr-1" /> Export Marks
+              </Button>
             </div>
-            <div className="p-4 border-t bg-card flex justify-end">
-              <Button onClick={saveAll}>
-                <Save className="h-4 w-4 mr-1" /> Save Marks
+            <div className="space-y-2">
+              <div className="flex flex-wrap gap-2 items-center">
+                <Button
+                  variant={importContextSet ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => {
+                    if (!classLevel) return toast.error("Select class before setting import context.");
+                    if (!subjectName) return toast.error("Select subject before setting import context.");
+                    if (paperNumber < 1 || paperNumber > subjectPaperCount)
+                      return toast.error("Choose a valid paper number for the selected subject.");
+                    if (!term) return toast.error("Select term before setting import context.");
+                    if (!examSet) return toast.error("Select exam set before setting import context.");
+                    setImportContextSet(true);
+                    toast.success(
+                      `Import context set: ${classLevel} • ${subjectName} • Paper ${paperNumber} • ${term} • ${examSet}`,
+                    );
+                  }}
+                >
+                  {importContextSet ? "Import Context Set" : "Set Import Context"}
+                </Button>
+
+                <Button
+                  onClick={() => fileInputRef.current?.click()}
+                  variant="outline"
+                  size="sm"
+                  disabled={!importContextSet}
+                  title={!importContextSet ? "Set import context first" : "Select file to import"}
+                >
+                  <Upload className="h-4 w-4 mr-1" /> Import Marks
+                </Button>
+              </div>
+
+              <Button
+                onClick={applyImport}
+                variant="outline"
+                size="sm"
+                disabled={!importContextSet || !importRows.length}
+                title={!importContextSet ? "Set import context before applying" : "Apply imported rows"}
+              >
+                <Upload className="h-4 w-4 mr-1" /> Apply Imported
               </Button>
             </div>
           </Card>
-        </>
-      )}
+        </div>
+
+        <div className="space-y-6">
+          {importRows.length > 0 && (
+            <Card className="overflow-x-auto">
+              <div className="p-4 border-b flex items-center justify-between gap-3 flex-wrap">
+                <div>
+                  <p className="font-semibold">Import preview</p>
+                  <p className="text-sm text-muted-foreground">
+                    Confirm or uncheck any rows before importing.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button variant="outline" size="sm" onClick={() => setImportRows([])}>
+                    Cancel preview
+                  </Button>
+                  <Button size="sm" onClick={applyImport}>
+                    Apply selected rows
+                  </Button>
+                </div>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-secondary text-secondary-foreground">
+                    <tr>
+                      <th className="p-3 text-left">Import</th>
+                      <th className="p-3 text-left">Name</th>
+                      <th className="p-3 text-left">Registration</th>
+                      <th className="p-3 text-left">Score</th>
+                      <th className="p-3 text-left">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {importRows.map((row) => (
+                      <tr key={row.id} className="border-t hover:bg-accent/10">
+                        <td className="p-3">
+                          <input
+                            type="checkbox"
+                            checked={row.selected}
+                            onChange={() => toggleImportRow(row.id)}
+                            className="w-4 h-4"
+                            aria-label={`Select row for ${row.name}`}
+                          />
+                        </td>
+                        <td className="p-3">{row.name}</td>
+                        <td className="p-3">{row.registrationNumber}</td>
+                        <td className="p-3">{row.score}</td>
+                        <td className="p-3 text-xs text-muted-foreground">
+                          {row.errors.length > 0 ? row.errors.join("; ") : "Ready"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+          )}
+
+          {students.length === 0 ? (
+            <Card className="p-10 text-center text-muted-foreground">
+              Enroll students first before entering marks.
+            </Card>
+          ) : !filtersApplied ? (
+            <Card className="p-10 text-center text-muted-foreground">
+              Select a subject and paper number to enter marks.
+            </Card>
+          ) : (
+            <Card className="overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-secondary text-secondary-foreground">
+                    <tr>
+                      <th className="text-left p-3">Student</th>
+                      <th className="text-left p-3">Class</th>
+                      <th className="text-left p-3 w-32">Paper</th>
+                      <th className="text-left p-3 w-32">Exam Set</th>
+                      <th className="text-left p-3 w-32">Score / 100</th>
+                      <th className="text-left p-3 w-24">Latest</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredStudents.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="p-6 text-center text-muted-foreground">
+                          {searchQuery
+                            ? `No students match "${searchQuery}"`
+                            : classLevel !== "all"
+                            ? `No students enrolled in ${classLevel} yet.`
+                            : "Select a class to see students."}
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredStudents.map((student) => {
+                        const hasSubject = subjectsForStudent(student, allSubjects).some(
+                          (s) => s.name === subjectName,
+                        );
+                        return (
+                          <tr key={student.id} className="border-t hover:bg-accent/20">
+                            <td className="p-3 font-medium">{student.name}</td>
+                            <td className="p-3">{student.classLevel}</td>
+                            <td className="p-3">Paper {paperNumber}</td>
+                            <td className="p-3">{examSet}</td>
+                            <td className="p-2">
+                              <Input
+                                type="number"
+                                min={0}
+                                max={100}
+                                step="0.1"
+                                disabled={!hasSubject}
+                                value={hasSubject ? value(student.id) : ""}
+                                placeholder={hasSubject ? "" : "N/A"}
+                                onChange={(e) => setVal(student.id, e.target.value)}
+                              />
+                            </td>
+                            <td className="p-3 font-mono">
+                              {hasSubject
+                                ? (() => {
+                                    const existing = marks
+                                      .filter(
+                                        (m) =>
+                                          m.studentId === student.id &&
+                                          m.term === term &&
+                                          m.subject === subjectName,
+                                      )
+                                      .sort((a, b) => a.paper - b.paper);
+                                    const last = existing[existing.length - 1];
+                                    if (!last) return "—";
+                                    return last.score !== undefined
+                                      ? last.score.toFixed(1)
+                                      : ((last.ca ?? 0) + (last.exam ?? 0)).toFixed(1);
+                                  })()
+                                : "N/A"}
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+              <div className="p-4 border-t bg-card flex justify-end">
+                <Button onClick={saveAll}>
+                  <Save className="h-4 w-4 mr-1" /> Save Marks
+                </Button>
+              </div>
+            </Card>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

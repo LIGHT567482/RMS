@@ -27,6 +27,7 @@ function ProjectWorkPage() {
   const [classLevel, setClassLevel] = useState<ClassLevel>(ORDINARY_LEVELS[0]);
   const [term, setTerm] = useState<Term>("Term 1");
   const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [searchQuery, setSearchQuery] = useState<string>("");
   const [exportFormat, setExportFormat] = useState<"xlsx" | "csv" | "ods">("xlsx");
   const [importRows, setImportRows] = useState<
     { id: string; name: string; score: string; selected: boolean; errors: string[] }[]
@@ -51,6 +52,24 @@ function ProjectWorkPage() {
     () => students.filter((s) => s.classLevel === classLevel),
     [students, classLevel],
   );
+
+  const visibleStudents = useMemo(
+    () =>
+      filteredStudents.filter((s) => {
+        const query = searchQuery.trim().toLowerCase();
+        if (!query) return true;
+        return (
+          s.name.toLowerCase().includes(query) ||
+          s.registrationNumber?.toLowerCase().includes(query)
+        );
+      }),
+    [filteredStudents, searchQuery],
+  );
+
+  const filtersApplied =
+    searchQuery.trim() !== "" ||
+    classLevel !== ORDINARY_LEVELS[0] ||
+    term !== "Term 1";
 
   function valueFor(studentId: string) {
     const k = `${studentId}:${term}`;
@@ -230,183 +249,208 @@ function ProjectWorkPage() {
         </p>
       </div>
 
-      <Card className="p-5 grid sm:grid-cols-3 gap-4">
-        <div>
-          <Label>Class</Label>
-          <Select value={classLevel} onValueChange={(v) => setClassLevel(v as ClassLevel)}>
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {ORDINARY_LEVELS.map((level) => (
-                <SelectItem key={level} value={level}>
-                  {level}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div>
-          <Label>Term</Label>
-          <Select value={term} onValueChange={(v) => setTerm(v as Term)}>
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {ALL_TERMS.map((t) => (
-                <SelectItem key={t} value={t}>
-                  {t}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </Card>
-
-      <Card className="p-4 flex flex-wrap gap-2 items-center">
-        <div className="flex gap-2 items-end flex-wrap flex-1">
-          <div>
-            <Label className="text-xs block mb-1">Export Format</Label>
-            <Select
-              value={exportFormat}
-              onValueChange={(v) => setExportFormat(v as "xlsx" | "csv" | "ods")}
-            >
-              <SelectTrigger className="w-32">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="xlsx">.xlsx (Excel)</SelectItem>
-                <SelectItem value="csv">.csv (Spreadsheet)</SelectItem>
-                <SelectItem value="ods">.ods (LibreOffice)</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <Button onClick={() => downloadProjectWorkbook(exportFormat)} variant="outline" size="sm">
-            <Download className="h-4 w-4 mr-1" /> Export Project Work
-          </Button>
-        </div>
-        <Button onClick={() => fileInputRef.current?.click()} variant="outline" size="sm">
-          <Upload className="h-4 w-4 mr-1" /> Import Project Work
-        </Button>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".xlsx,.xls,.csv,.ods"
-          onChange={handleImportFile}
-          className="hidden"
-          aria-label="Upload project work spreadsheet"
-        />
-        <Button onClick={applyImport} variant="outline" size="sm" disabled={!importRows.length}>
-          <Upload className="h-4 w-4 mr-1" /> Apply Imported
-        </Button>
-      </Card>
-
-      {importRows.length > 0 && (
-        <Card className="overflow-x-auto">
-          <div className="p-4 border-b flex items-center justify-between gap-3 flex-wrap">
+      <div className="grid gap-6 lg:grid-cols-[minmax(320px,1fr)_minmax(0,3fr)]">
+        <div className="sticky top-4 self-start space-y-4">
+          <Card className="p-5 grid sm:grid-cols-3 gap-4">
             <div>
-              <p className="font-semibold">Import preview</p>
-              <p className="text-sm text-muted-foreground">
-                Confirm or uncheck any rows before importing.
-              </p>
+              <Label>Class</Label>
+              <Select value={classLevel} onValueChange={(v) => setClassLevel(v as ClassLevel)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {ORDINARY_LEVELS.map((level) => (
+                    <SelectItem key={level} value={level}>
+                      {level}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-            <div className="flex flex-wrap gap-2">
-              <Button variant="outline" size="sm" onClick={() => setImportRows([])}>
-                Cancel preview
-              </Button>
-              <Button size="sm" onClick={applyImport}>
-                Apply selected rows
+            <div>
+              <Label>Term</Label>
+              <Select value={term} onValueChange={(v) => setTerm(v as Term)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {ALL_TERMS.map((t) => (
+                    <SelectItem key={t} value={t}>
+                      {t}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Search Students</Label>
+              <Input
+                type="search"
+                placeholder="Search by name or registration number"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+          </Card>
+
+          <Card className="p-4 flex flex-wrap gap-2 items-center">
+            <div className="flex gap-2 items-end flex-wrap flex-1">
+              <div>
+                <Label className="text-xs block mb-1">Export Format</Label>
+                <Select
+                  value={exportFormat}
+                  onValueChange={(v) => setExportFormat(v as "xlsx" | "csv" | "ods")}
+                >
+                  <SelectTrigger className="w-32">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="xlsx">.xlsx (Excel)</SelectItem>
+                    <SelectItem value="csv">.csv (Spreadsheet)</SelectItem>
+                    <SelectItem value="ods">.ods (LibreOffice)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button onClick={() => downloadProjectWorkbook(exportFormat)} variant="outline" size="sm">
+                <Download className="h-4 w-4 mr-1" /> Export Project Work
               </Button>
             </div>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-secondary text-secondary-foreground">
-                <tr>
-                  <th className="p-3 text-left">Import</th>
-                  <th className="p-3 text-left">Name</th>
-                  <th className="p-3 text-left">Score</th>
-                  <th className="p-3 text-left">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {importRows.map((row) => (
-                  <tr key={row.id} className="border-t hover:bg-accent/10">
-                    <td className="p-3">
-                      <input
-                        type="checkbox"
-                        checked={row.selected}
-                        onChange={() => toggleImportRow(row.id)}
-                        className="w-4 h-4"
-                        aria-label={`Select row for ${row.name}`}
-                      />
-                    </td>
-                    <td className="p-3">{row.name}</td>
-                    <td className="p-3">{row.score}</td>
-                    <td className="p-3 text-xs text-muted-foreground">
-                      {row.errors.length > 0 ? row.errors.join("; ") : "Ready"}
-                    </td>
+            <Button onClick={() => fileInputRef.current?.click()} variant="outline" size="sm">
+              <Upload className="h-4 w-4 mr-1" /> Import Project Work
+            </Button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".xlsx,.xls,.csv,.ods"
+              onChange={handleImportFile}
+              className="hidden"
+              aria-label="Upload project work spreadsheet"
+            />
+            <Button onClick={applyImport} variant="outline" size="sm" disabled={!importRows.length}>
+              <Upload className="h-4 w-4 mr-1" /> Apply Imported
+            </Button>
+          </Card>
+        </div>
+
+        <div className="space-y-6">
+        {importRows.length > 0 && (
+          <Card className="overflow-x-auto">
+            <div className="p-4 border-b flex items-center justify-between gap-3 flex-wrap">
+              <div>
+                <p className="font-semibold">Import preview</p>
+                <p className="text-sm text-muted-foreground">
+                  Confirm or uncheck any rows before importing.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button variant="outline" size="sm" onClick={() => setImportRows([])}>
+                  Cancel preview
+                </Button>
+                <Button size="sm" onClick={applyImport}>
+                  Apply selected rows
+                </Button>
+              </div>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-secondary text-secondary-foreground sticky top-0 z-20">
+                  <tr>
+                    <th className="p-3 text-left">Import</th>
+                    <th className="p-3 text-left">Name</th>
+                    <th className="p-3 text-left">Score</th>
+                    <th className="p-3 text-left">Status</th>
                   </tr>
-                ))}
+                </thead>
+                <tbody>
+                  {importRows.map((row) => (
+                    <tr key={row.id} className="border-t hover:bg-accent/10">
+                      <td className="p-3">
+                        <input
+                          type="checkbox"
+                          checked={row.selected}
+                          onChange={() => toggleImportRow(row.id)}
+                          className="w-4 h-4"
+                          aria-label={`Select row for ${row.name}`}
+                        />
+                      </td>
+                      <td className="p-3">{row.name}</td>
+                      <td className="p-3">{row.score}</td>
+                      <td className="p-3 text-xs text-muted-foreground">
+                        {row.errors.length > 0 ? row.errors.join("; ") : "Ready"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        )}
+
+        {!filtersApplied ? (
+          <Card className="p-10 text-center text-muted-foreground">
+            Use the class, term, or search filters on the left to display project work marks.
+          </Card>
+        ) : (
+          <Card className="overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-secondary sticky top-0 z-20">
+                  <tr>
+                    <th className="text-left p-3">Student</th>
+                    <th className="text-left p-3">Class</th>
+                    <th className="text-left p-3 w-40">Marks / 100</th>
+                    <th className="text-left p-3 w-24">Grade</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {visibleStudents.length === 0 ? (
+                    <tr>
+                      <td colSpan={4} className="p-6 text-center text-muted-foreground">
+                        {searchQuery.trim() ? (
+                          <span>No students match “{searchQuery}”.</span>
+                        ) : (
+                          <span>No students enrolled in {classLevel} yet.</span>
+                        )}
+                      </td>
+                    </tr>
+                  ) : (
+                    visibleStudents.map((s) => {
+                      const v = valueFor(s.id);
+                      const n = parseFloat(v || "0");
+                      const g = !isNaN(n) && v !== "" ? gradeFor(n).grade : "—";
+                      return (
+                        <tr key={s.id} className="border-t hover:bg-accent/20">
+                          <td className="p-3 font-medium">{s.name}</td>
+                          <td className="p-3">{s.classLevel}</td>
+                          <td className="p-2">
+                            <Input
+                              type="number"
+                              min={0}
+                              max={100}
+                              step="0.1"
+                              value={v}
+                              onChange={(e) =>
+                                setDrafts((d) => ({ ...d, [`${s.id}:${term}`]: e.target.value }))
+                              }
+                            />
+                          </td>
+                          <td className="p-3 font-bold">{g}</td>
+                        </tr>
+                      );
+                    })
+                  )}
               </tbody>
             </table>
           </div>
+          <div className="p-4 border-t flex justify-end">
+            <Button onClick={saveAll}>
+              <Save className="h-4 w-4 mr-1" /> Save Project Marks
+            </Button>
+          </div>
         </Card>
-      )}
-
-      <Card className="overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-secondary">
-              <tr>
-                <th className="text-left p-3">Student</th>
-                <th className="text-left p-3">Class</th>
-                <th className="text-left p-3 w-40">Marks / 100</th>
-                <th className="text-left p-3 w-24">Grade</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredStudents.length === 0 ? (
-                <tr>
-                  <td colSpan={4} className="p-6 text-center text-muted-foreground">
-                    No students enrolled in {classLevel} yet.
-                  </td>
-                </tr>
-              ) : (
-                filteredStudents.map((s) => {
-                  const v = valueFor(s.id);
-                  const n = parseFloat(v || "0");
-                  const g = !isNaN(n) && v !== "" ? gradeFor(n).grade : "—";
-                  return (
-                    <tr key={s.id} className="border-t hover:bg-accent/20">
-                      <td className="p-3 font-medium">{s.name}</td>
-                      <td className="p-3">{s.classLevel}</td>
-                      <td className="p-2">
-                        <Input
-                          type="number"
-                          min={0}
-                          max={100}
-                          step="0.1"
-                          value={v}
-                          onChange={(e) =>
-                            setDrafts((d) => ({ ...d, [`${s.id}:${term}`]: e.target.value }))
-                          }
-                        />
-                      </td>
-                      <td className="p-3 font-bold">{g}</td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
+        )}
         </div>
-        <div className="p-4 border-t flex justify-end">
-          <Button onClick={saveAll}>
-            <Save className="h-4 w-4 mr-1" /> Save Project Marks
-          </Button>
-        </div>
-      </Card>
+      </div>
     </div>
   );
 }

@@ -34,10 +34,8 @@ export const Route = createFileRoute("/dashboard")({
 
 const NAV: { to: string; label: string; icon: any; exact?: boolean }[] = [
   { to: "/dashboard", label: "Overview", icon: LayoutDashboard, exact: true },
-  { to: "/dashboard/students", label: "Students", icon: Users },
   { to: "/dashboard/marks", label: "Enter Marks", icon: ClipboardList },
   { to: "/dashboard/project-work", label: "Project Work", icon: Sparkles },
-  { to: "/dashboard/reports", label: "Report Cards", icon: FileText },
   { to: "/dashboard/settings", label: "Settings", icon: Settings },
 ];
 

@@ -30,6 +30,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Progress } from "@/components/ui/progress";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
@@ -97,38 +98,30 @@ function ReportsPage() {
       : ["EOT"];
   const examSetLabels: Record<ExamSet, string> = { BOT: "B.O.T", MOT: "M.O.T", EOT: "E.O.T" };
 
-  const [classLevel, setClassLevel] = useState<string>("S.1");
+  const [classLevel, setClassLevel] = useState<string>("all");
   const [selectedStudents, setSelectedStudents] = useState<string[]>([]);
-  const [term, setTerm] = useState<Term>("Term 1");
+  const [term, setTerm] = useState<Term | "">("" as any);
   const [issueDate, setIssueDate] = useState(school.issueDate);
   const [classTeacherComment, setClassTeacherComment] = useState("");
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  const [pdfBatchSize, setPdfBatchSize] = useState(10);
+  const [pdfProgress, setPdfProgress] = useState(0);
+  const [pdfProgressText, setPdfProgressText] = useState("");
   const [headComment, setHeadComment] = useState("");
   const [feesNext, setFeesNext] = useState(school.bursarFeesNextTerm ?? "");
   const [debt, setDebt] = useState(school.bursarDebt ?? "");
 
   const studentsInClass = useMemo(
-    () => students.filter((s) => s.classLevel === classLevel),
+    () =>
+      classLevel === "all" ? students : students.filter((s) => s.classLevel === classLevel),
     [students, classLevel],
   );
 
-  // Set default classLevel to the first class with students
   useEffect(() => {
-    if (students.length > 0 && studentsInClass.length === 0) {
-      const firstClass = [...new Set(students.map((s) => s.classLevel))].sort()[0];
-      if (firstClass) setClassLevel(firstClass);
-    }
-  }, [students, studentsInClass.length, classLevel]);
-
-  // Sync selection when the class level changes
-  useEffect(() => {
-    if (studentsInClass.length === 0) {
-      setSelectedStudents([]);
-      return;
-    }
-
-    const hasSelectedInClass = studentsInClass.some((s) => selectedStudents.includes(s.id));
-    if (!hasSelectedInClass) {
-      setSelectedStudents(studentsInClass.map((s) => s.id));
+    const classIds = new Set(studentsInClass.map((s) => s.id));
+    const nextSelection = selectedStudents.filter((id) => classIds.has(id));
+    if (nextSelection.length !== selectedStudents.length) {
+      setSelectedStudents(nextSelection);
     }
   }, [studentsInClass, selectedStudents]);
 
@@ -136,6 +129,183 @@ function ReportsPage() {
     () => students.filter((s) => selectedStudents.includes(s.id)),
     [students, selectedStudents],
   );
+
+  async function generateReportsPdf() {
+    if (selectedStudentObjects.length === 0) {
+      toast.error("Select at least one student to generate a PDF.");
+      return;
+    }
+
+    try {
+      setIsGeneratingPdf(true);
+      const html2canvasModule = await import("html2canvas");
+      const html2canvas = html2canvasModule.default ?? html2canvasModule;
+      const jsPDFModule = await import("jspdf");
+      const jsPDF = jsPDFModule.jsPDF ?? jsPDFModule.default ?? jsPDFModule;
+
+      if (typeof html2canvas !== "function" || typeof jsPDF !== "function") {
+        throw new Error("PDF libraries could not be loaded.");
+      }
+
+      const cardElements = Array.from(
+        document.querySelectorAll<HTMLDivElement>(".report-card-pdf"),
+      );
+      if (cardElements.length === 0) {
+        toast.error(
+          `No report cards available to export (${selectedStudents.length} selected).`,
+        );
+        setIsGeneratingPdf(false);
+        return;
+      }
+
+      const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+      const pdfWidth = 210;
+      const pdfHeight = 297;
+      const renderScale = Math.max(window.devicePixelRatio || 1, 2);
+      const pageCssWidth = `${pdfWidth}mm`;
+      const pageCssHeight = `${pdfHeight}mm`;
+      setPdfProgress(0);
+      setPdfProgressText(`Preparing ${cardElements.length} report cards for export`);
+
+      const parseCssColor = (() => {
+        const canvas = document.createElement("canvas");
+        canvas.width = 1;
+        canvas.height = 1;
+        const ctx = canvas.getContext("2d");
+        return (value: string) => {
+          if (!ctx) return null;
+          try {
+            ctx.clearRect(0, 0, 1, 1);
+            ctx.fillStyle = value;
+            ctx.fillRect(0, 0, 1, 1);
+            const data = ctx.getImageData(0, 0, 1, 1).data;
+            return `rgba(${data[0]}, ${data[1]}, ${data[2]}, ${data[3] / 255})`;
+          } catch {
+            return null;
+          }
+        };
+      })();
+
+      const normalizeColorValue = (value: string) => {
+        const colorFnRegex = /(oklch|oklab|lab|lch|color|device-cmyk)\([^)]*\)/gi;
+        return value.replace(colorFnRegex, (match) => {
+          const parsed = parseCssColor(match);
+          return parsed || match;
+        });
+      };
+
+      const copyComputedStyles = (source: HTMLElement, target: HTMLElement) => {
+        const computed = window.getComputedStyle(source);
+
+        for (let j = 0; j < computed.length; j += 1) {
+          const property = computed[j];
+          let value = computed.getPropertyValue(property);
+          if (!value) continue;
+          if (/(oklch|lab|lch|color|device-cmyk)\(/i.test(value)) {
+            value = normalizeColorValue(value);
+          }
+          try {
+            target.style.setProperty(property, value);
+          } catch {
+            // ignore unsupported style properties
+          }
+        }
+
+        for (let j = 0; j < source.style.length; j += 1) {
+          const property = source.style.item(j);
+          if (property?.startsWith("--")) {
+            let value = source.style.getPropertyValue(property);
+            if (/(oklch|lab|lch|color|device-cmyk)\(/i.test(value)) {
+              value = normalizeColorValue(value);
+            }
+            target.style.setProperty(property, value);
+          }
+        }
+      };
+
+      const createSafeClone = (original: HTMLElement) => {
+        const clone = original.cloneNode(true) as HTMLElement;
+        clone.style.width = pageCssWidth;
+        clone.style.minHeight = pageCssHeight;
+        clone.style.boxSizing = "border-box";
+        clone.style.position = "relative";
+
+        const wrapper = document.createElement("div");
+        wrapper.style.position = "absolute";
+        wrapper.style.left = "-100000px";
+        wrapper.style.top = "0";
+        wrapper.style.width = pageCssWidth;
+        wrapper.style.height = "auto";
+        wrapper.style.overflow = "visible";
+        wrapper.style.pointerEvents = "none";
+        wrapper.style.visibility = "hidden";
+        wrapper.appendChild(clone);
+        document.body.appendChild(wrapper);
+
+        const originals = [original, ...Array.from(original.querySelectorAll<HTMLElement>("*"))];
+        const clones = [clone, ...Array.from(clone.querySelectorAll<HTMLElement>("*"))];
+        originals.forEach((origEl, index) => {
+          const cloneEl = clones[index];
+          if (!cloneEl) return;
+          copyComputedStyles(origEl, cloneEl as HTMLElement);
+        });
+
+        return { wrapper, clone };
+      };
+
+      for (let i = 0; i < cardElements.length; i += 1) {
+        if (i > 0) pdf.addPage();
+        const element = cardElements[i] as HTMLElement;
+        const { wrapper, clone } = createSafeClone(element);
+        const canvas = await html2canvas(clone, {
+          scale: renderScale,
+          useCORS: true,
+          backgroundColor: null, // let css background show through
+          logging: false,
+          scrollX: 0,
+          scrollY: 0,
+          windowWidth: clone.scrollWidth,
+          windowHeight: clone.scrollHeight,
+          allowTaint: true,
+        });
+        document.body.removeChild(wrapper);
+
+        const imgData = canvas.toDataURL("image/png");
+        const fitScale = Math.min(pdfWidth / canvas.width, pdfHeight / canvas.height);
+        const imgWidth = canvas.width * fitScale * 2;
+        const imgHeight = canvas.height * fitScale * 2;
+        const xOffset = (pdfWidth - imgWidth) / 2;
+        const yOffset = (pdfHeight - imgHeight) / 2;
+        pdf.addImage(imgData, "PNG", xOffset, yOffset, imgWidth, imgHeight);
+
+        const completed = i + 1;
+        const percent = Math.round((completed / cardElements.length) * 100);
+        setPdfProgress(percent);
+        setPdfProgressText(`Rendered ${completed} of ${cardElements.length} report cards`);
+
+        if (completed % pdfBatchSize === 0 || completed === cardElements.length) {
+          await new Promise((resolve) => requestAnimationFrame(resolve));
+        }
+      }
+
+      pdf.save(`report-cards-${Date.now()}.pdf`);
+      setPdfProgress(100);
+      setPdfProgressText(`Completed ${cardElements.length} report cards`);
+      toast.success("PDF generated successfully.");
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.error("PDF generation error:", error);
+      const message =
+        error instanceof Error
+          ? error.message
+          : typeof error === "string"
+          ? error
+          : "Unknown error";
+      toast.error(`Failed to generate PDF: ${message}`);
+    } finally {
+      setIsGeneratingPdf(false);
+    }
+  }
 
   // Positions for selected students
   const positions = useMemo(() => {
@@ -212,7 +382,15 @@ function ReportsPage() {
         </div>
         <div className="flex gap-2 flex-wrap">
           <Button variant="outline" onClick={() => window.print()}>
-            <Printer className="h-4 w-4 mr-1" /> Print / Save PDF
+            <Printer className="h-4 w-4 mr-1" /> Print
+          </Button>
+          <Button
+            variant="outline"
+            disabled={selectedStudents.length === 0 || isGeneratingPdf}
+            onClick={generateReportsPdf}
+          >
+            <Download className="h-4 w-4 mr-1" />
+            {isGeneratingPdf ? "Generating PDF…" : "Download PDF"}
           </Button>
           <Button
             variant="outline"
@@ -237,36 +415,6 @@ function ReportsPage() {
             }}
           >
             <Share2 className="h-4 w-4 mr-1" /> Share
-          </Button>
-          <Button
-            variant="outline"
-            disabled={selectedStudents.length !== 1}
-            onClick={() => window.print()}
-          >
-            <Download className="h-4 w-4 mr-1" /> Save
-          </Button>
-          <Button
-            variant="outline"
-            disabled={selectedStudents.length === 0}
-            onClick={async () => {
-              const printReportsBulk = async () => {
-                for (let i = 0; i < selectedStudentObjects.length; i++) {
-                  // Scroll to the report
-                  const reportElement = document.querySelector(`[data-student-id="${selectedStudentObjects[i].id}"]`);
-                  if (reportElement) {
-                    reportElement.scrollIntoView({ behavior: "smooth" });
-                    await new Promise(resolve => setTimeout(resolve, 500));
-                  }
-                  // Open print dialog
-                  window.print();
-                  // Wait before moving to the next one
-                  await new Promise(resolve => setTimeout(resolve, 1000));
-                }
-              };
-              printReportsBulk();
-            }}
-          >
-            <Printer className="h-4 w-4 mr-1" /> Print Bulk (Individual)
           </Button>
 
           <Button
@@ -342,10 +490,43 @@ function ReportsPage() {
             Generate 50 test students
           </Button>
         </div>
+
+        <div className="w-full max-w-xl mt-4 space-y-3">
+          <div className="grid gap-3 sm:grid-cols-[1fr_auto] items-end">
+            <div>
+              <Label htmlFor="pdf-batch-size">Batch size</Label>
+              <Input
+                id="pdf-batch-size"
+                type="number"
+                min={1}
+                max={50}
+                value={pdfBatchSize}
+                onChange={(event) =>
+                  setPdfBatchSize(Math.max(1, Math.min(50, Number(event.target.value) || 1)))
+                }
+                className="mt-2 w-full max-w-[120px]"
+              />
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Use smaller batches for very large exports to keep progress updates responsive.
+            </p>
+          </div>
+
+          {(isGeneratingPdf || pdfProgress > 0) && (
+            <div className="space-y-2 rounded-lg border border-border bg-background p-4">
+              <div className="flex items-center justify-between text-sm">
+                <span className="font-medium">PDF export progress</span>
+                <span>{pdfProgress}%</span>
+              </div>
+              <Progress value={pdfProgress} />
+              <p className="text-sm text-muted-foreground">{pdfProgressText || "Preparing export..."}</p>
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="grid gap-6 grid-cols-1 lg:grid-cols-[1fr_2fr]">
-        <Card className="p-5 space-y-4 no-print min-w-0 w-full">
+        <Card className="p-5 space-y-4 no-print min-w-0 w-full bg-muted">
           <div>
             <h2 className="font-semibold text-lg">Report Settings</h2>
             <p className="text-sm text-muted-foreground">
@@ -357,10 +538,11 @@ function ReportsPage() {
             <Label>Class Level</Label>
             <Select value={classLevel} onValueChange={setClassLevel}>
               <SelectTrigger>
-                <SelectValue />
+                <SelectValue placeholder="All classes" />
               </SelectTrigger>
               <SelectContent>
-                {["S.1", "S.2", "S.3", "S.4", "S.5", "S.6"].map((level) => (
+                <SelectItem value="all">All classes</SelectItem>
+                {["S.1", "S.2", "S.3", "S.4", "S.5", "S.6", "A.1", "A.2", "A.3"].map((level) => (
                   <SelectItem key={level} value={level}>
                     {level}
                   </SelectItem>
@@ -372,7 +554,7 @@ function ReportsPage() {
             <Label>Term</Label>
             <Select value={term} onValueChange={(v) => setTerm(v as Term)}>
               <SelectTrigger>
-                <SelectValue />
+                <SelectValue placeholder="Select term" />
               </SelectTrigger>
               <SelectContent>
                 {ALL_TERMS.map((t) => (
@@ -464,7 +646,11 @@ function ReportsPage() {
               placeholder="Optional comment for the printed report."
             />
           </div>
-          <Button variant="secondary" className="w-full" onClick={persistDates}>
+          <Button
+            variant="secondary"
+            className="w-full bg-primary/15 text-primary hover:bg-primary/20"
+            onClick={persistDates}
+          >
             Save defaults
           </Button>
         </Card>
@@ -477,7 +663,11 @@ function ReportsPage() {
           ) : (
             <div className="grid gap-6 items-start">
               {selectedStudentObjects.map((student, index) => (
-                <div key={student.id} data-student-id={student.id} className={index > 0 ? "page-break-before-always" : ""}>
+                <div
+                  key={student.id}
+                  className="report-card-pdf"
+                  data-report-card-index={index}
+                >
                   <ReportCard
                     student={student}
                     term={term}
@@ -497,38 +687,6 @@ function ReportsPage() {
                   />
                 </div>
               ))}
-              {selectedStudentObjects.length > 0 && (
-                <>
-                  {Array.from({ length: 2 }).map((_, blankIndex) => (
-                    <div key={`blank-${blankIndex}`} className="page-break-before-always">
-                      <ReportCard
-                        student={{
-                          id: `blank-${blankIndex}`,
-                          name: "________________________",
-                          classLevel: isAdvancedLevel(classLevel as any) ? "S.5" : "S.1",
-                          photoDataUrl: undefined,
-                          enrolledSubjects: [],
-                          createdAt: Date.now(),
-                        }}
-                        term={term}
-                        issueDate="__________"
-                        school={school}
-                        subjects={[]}
-                        marks={[]}
-                        projects={[]}
-                        selectedExamSets={selectedExamSets}
-                        examSetLabels={examSetLabels}
-                        position={null}
-                        ord={ord}
-                        classTeacherComment=""
-                        headComment=""
-                        feesNext=""
-                        debt=""
-                      />
-                    </div>
-                  ))}
-                </>
-              )}
             </div>
           )}
         </div>
@@ -539,7 +697,7 @@ function ReportsPage() {
 
 function ReportCard(props: {
   student: Student;
-  term: Term;
+  term: Term | "";
   issueDate: string;
   school: ReturnType<typeof getSchool>;
   subjects: ReturnType<typeof getSubjects>;
@@ -648,12 +806,12 @@ function ReportCard(props: {
       style={
         {
           maxWidth: "210mm",
-          boxShadow: "var(--shadow-elegant)",
+          boxShadow: "none",
           backgroundColor: reportPageColor,
           color: reportContentColor,
-          border: `1px solid ${reportHeadingColor}`,
+          border: "none",
           position: "relative",
-          padding: "1cm",
+          padding: "1.5cm",
           "--report-heading-color": reportHeadingColor,
           "--report-heading-text": headingTextColor,
           "--report-page-soft": pageSoft,
@@ -667,10 +825,7 @@ function ReportCard(props: {
             size: A4;
             margin: 0;
           }
-          * {
-            margin: 0 !important;
-            padding: 0 !important;
-          }
+          /* avoid resetting all elements here; global print rules live in src/styles.css */
           body {
             margin: 0;
             padding: 0;
@@ -679,6 +834,8 @@ function ReportCard(props: {
           html, body, #root {
             width: 100% !important;
             height: 100% !important;
+            display: grid !important;
+            place-items: center !important;
           }
           .no-print {
             display: none !important;
@@ -686,15 +843,21 @@ function ReportCard(props: {
           .print-area {
             box-shadow: none !important;
             border: none !important;
-            margin: 0 !important;
-            padding: 0.7cm !important;
-            max-width: 100% !important;
-            width: 100% !important;
-            height: auto !important;
+            margin: 15mm auto !important;
+            padding: 15mm !important;
+            max-width: calc(210mm - 30mm) !important;
+            width: calc(100% - 30mm) !important;
+            min-height: calc(297mm - 30mm) !important;
             page-break-after: always;
             page-break-inside: avoid !important;
+            break-after: page !important;
+            display: flex !important;
+            flex-direction: column !important;
+            justify-content: center !important;
             font-size: 13px !important;
-            line-height: 1.25 !important;
+            line-height: 1.35 !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
           }
           .print-area h2 {
             font-size: 17px !important;
@@ -712,7 +875,7 @@ function ReportCard(props: {
             margin: 0 !important;
             padding: 0 !important;
             font-size: 12px !important;
-            line-height: 1.2 !important;
+            line-height: 1.3 !important;
           }
           .print-area table {
             font-size: 11px !important;
@@ -723,8 +886,15 @@ function ReportCard(props: {
           .print-area table th,
           .print-area table td {
             padding: 2px 3px !important;
-            border-width: 0.5px !important;
-            line-height: 1.2 !important;
+            line-height: 1.3 !important;
+            border: 0.5px solid var(--report-heading-color) !important;
+            border-collapse: collapse !important;
+          }
+
+          /* Slightly thicker separator between subjects */
+          .print-area .subject-separator td,
+          .print-area .subject-separator th {
+            border-bottom: 2px solid var(--report-heading-color) !important;
           }
           /* Advanced-level overrides */
           .print-area.advanced {
@@ -735,10 +905,10 @@ function ReportCard(props: {
           .print-area.advanced table { font-size: 13px !important; }
           .print-area.advanced table th,
           .print-area.advanced table td { padding: 4px 6px !important; }
+          .print-area .header-logo,
+          .print-area .student-photo { width: 8rem !important; height: 8rem !important; }
           .print-area.advanced .header-logo,
-          .print-area.advanced .student-photo { width: 10rem !important; height: 10rem !important; }
-          .print-area:not(.advanced) .header-logo,
-          .print-area:not(.advanced) .student-photo { width: 8rem !important; height: 8rem !important; }
+          .print-area.advanced .student-photo { width: 12rem !important; height: 12rem !important; }
           .print-area.advanced .header-logo img,
           .print-area.advanced .student-photo img { width: 100% !important; height: 100% !important; object-fit: cover !important; }
         }
@@ -771,7 +941,7 @@ function ReportCard(props: {
         style={{ borderColor: reportHeadingColor, position: "relative", zIndex: 1 }}
       >
         <div className="flex items-center gap-3">
-          <div className={`rounded-full flex items-center justify-center shrink-0 overflow-hidden header-logo ${advanced ? 'h-40 w-40' : 'h-32 w-32'}`}>
+          <div className={`rounded-full flex items-center justify-center shrink-0 overflow-hidden header-logo ${advanced ? 'h-48 w-48' : 'h-32 w-32'}`}>
             {school.logoDataUrl ? (
               <img src={school.logoDataUrl} alt="badge" className="h-full w-full object-cover" />
             ) : (
@@ -800,7 +970,7 @@ function ReportCard(props: {
             <p className="text-[11px]">Email: {school.email}</p>
             <p className="text-[11px] italic mt-0 font-semibold">Motto: "{school.motto}"</p>
           </div>
-          <div className={`rounded-full flex items-center justify-center text-[11px] text-muted-foreground text-center overflow-hidden student-photo ${advanced ? 'h-40 w-40' : 'h-32 w-32'}`}>
+          <div className={`rounded-full flex items-center justify-center text-[11px] text-muted-foreground text-center overflow-hidden student-photo ${advanced ? 'h-48 w-48' : 'h-32 w-32'}`}>
             {student.photoDataUrl ? (
               <img
                 src={student.photoDataUrl}
@@ -915,12 +1085,9 @@ function ReportCard(props: {
                 {paperRows.map((paper, paperIndex) => (
                   <tr
                     key={`${r.subject}-${paper.label}`}
+                    className={paperIndex === paperRows.length - 1 && !advanced ? 'subject-separator' : undefined}
                     style={{
                       backgroundColor: rowIndex % 2 === 1 ? stripeColor : undefined,
-                      borderBottom:
-                        paperIndex === paperRows.length - 1 && !advanced
-                          ? `3px solid ${reportHeadingColor}`
-                          : undefined,
                     }}
                   >
                     {paperIndex === 0 ? (
@@ -988,9 +1155,9 @@ function ReportCard(props: {
                 {advanced && (
                   <tr
                     key={`${r.subject}-total`}
+                    className="subject-separator"
                     style={{
                       backgroundColor: rowIndex % 2 === 1 ? stripeColor : undefined,
-                      borderBottom: `3px solid ${reportHeadingColor}`,
                     }}
                   >
                     <td className="border p-1 font-medium" style={{ borderColor: reportHeadingColor }}>
@@ -1115,7 +1282,7 @@ function ReportCard(props: {
         </div>
       </div>
 
-      <div className="mt-1 pt-1 border-t text-[10px] text-center text-muted-foreground">
+      <div className="mt-1 pt-1 text-[10px] text-center text-muted-foreground report-footer">
         {school.name} RMS • {issueDate}
       </div>
       <div className="mt-0 text-[9px] text-center text-muted-foreground/60 uppercase tracking-[0.15em]">

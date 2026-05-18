@@ -134,6 +134,8 @@ export interface SchoolInfo {
   gradingScales?: Record<string, GradeScale>;
   /** Number of papers per subject for O-level and A-level: key is "O:${subject}" or "A:${subject}" */
   subjectPapers?: Record<string, number>;
+  /** Saved paper grading targets per subject, e.g. "Paper 1" or "Papers 1-2" */
+  paperGradingTargets?: Record<string, string>;
 }
 
 export interface GradeScale {

@@ -135,7 +135,7 @@ function WelcomePage() {
       </div>
 
       {/* Right: forms */}
-      <div className="flex items-center justify-center p-0 relative overflow-hidden bg-white h-full">
+      <div className="flex items-center justify-center p-0 relative overflow-hidden bg-card h-full">
         <Card
           className="relative w-full h-full p-8 rounded-none flex items-center justify-center"
           style={{ boxShadow: "var(--shadow-elegant)" }}
@@ -153,7 +153,7 @@ function WelcomePage() {
             </div>
 
             <div className="flex flex-col items-center gap-4 mb-6 text-center">
-              <div className="h-48 w-48 rounded-full overflow-hidden border border-slate-200 bg-white shadow-sm flex items-center justify-center">
+              <div className="h-48 w-48 rounded-full overflow-hidden border border-border bg-card shadow-sm flex items-center justify-center">
                 {school.logoDataUrl ? (
                   <img
                     src={school.logoDataUrl}

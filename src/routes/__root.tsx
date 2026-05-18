@@ -148,11 +148,7 @@ function RootComponent() {
             type="button"
             aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
             onClick={() => setThemeState(theme === "dark" ? "light" : "dark")}
-            className={
-              theme === "dark"
-                ? "bg-white text-slate-900 shadow-lg shadow-black/10 border border-slate-200/80 hover:bg-slate-100"
-                : "bg-slate-900 text-white shadow-lg shadow-slate-900/20 border border-slate-700/80 hover:bg-slate-800"
-            }
+            className="bg-card text-card-foreground shadow-lg border border-border hover:opacity-90"
           >
             {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
           </Button>

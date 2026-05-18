@@ -2,13 +2,12 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { Card } from "@/components/ui/card";
 import {
   useStore,
-  getStudents,
   getSubjects,
   getMarks,
   getProjects,
   getSchool,
 } from "@/lib/storage";
-import { Users, BookOpen, ClipboardList, FileText, Sparkles, ArrowRight } from "lucide-react";
+import { BookOpen, ClipboardList, Sparkles, ArrowRight } from "lucide-react";
 
 export const Route = createFileRoute("/dashboard/")({
   component: Overview,
@@ -19,24 +18,26 @@ function Stat({
   label,
   value,
   to,
+  variant = "primary",
 }: {
   icon: any;
   label: string;
   value: number | string;
   to: string;
+  variant?: "primary" | "secondary";
 }) {
+  const iconClasses =
+    variant === "secondary" ? "bg-secondary/15 text-secondary" : "bg-primary/15 text-primary";
+
   return (
     <Link to={to}>
-      <Card
-        className="p-5 hover:shadow-lg transition-all group cursor-pointer h-full"
-        style={{ background: "var(--gradient-card)" }}
-      >
+      <Card className={`p-5 hover:shadow-lg transition-all group cursor-pointer h-full bg-muted`}>
         <div className="flex items-start justify-between">
           <div>
             <p className="text-sm text-muted-foreground">{label}</p>
             <p className="text-3xl font-display font-bold mt-1">{value}</p>
           </div>
-          <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
+          <div className={`h-10 w-10 rounded-lg ${iconClasses} flex items-center justify-center`}>
             <Icon className="h-5 w-5" />
           </div>
         </div>
@@ -49,7 +50,6 @@ function Stat({
 }
 
 function Overview() {
-  const students = useStore(getStudents);
   const subjects = useStore(getSubjects);
   const marks = useStore(getMarks);
   const projects = useStore(getProjects);
@@ -64,16 +64,23 @@ function Overview() {
         </p>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <Stat icon={Users} label="Students" value={students.length} to="/dashboard/students" />
-        <Stat icon={BookOpen} label="Subjects" value={subjects.length} to="/dashboard/subjects" />
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
         <Stat
+          variant="secondary"
+          icon={BookOpen}
+          label="Subjects"
+          value={subjects.length}
+          to="/dashboard/subjects"
+        />
+        <Stat
+          variant="primary"
           icon={ClipboardList}
           label="Mark Entries"
           value={marks.length}
           to="/dashboard/marks"
         />
         <Stat
+          variant="secondary"
           icon={Sparkles}
           label="Project Records"
           value={projects.length}
@@ -81,32 +88,16 @@ function Overview() {
         />
       </div>
 
-      <Card className="p-6" style={{ background: "var(--gradient-card)" }}>
+      <Card className="p-6 bg-muted">
         <h2 className="font-display text-xl mb-3">Quick Actions</h2>
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          <Link
-            to="/dashboard/students"
-            className="p-4 rounded-lg border hover:border-primary hover:bg-accent/30 transition"
-          >
-            <Users className="h-5 w-5 text-primary mb-2" />
-            <p className="font-medium">Enroll a student</p>
-            <p className="text-xs text-muted-foreground">Add new students by class</p>
-          </Link>
+        <div className="grid sm:grid-cols-2 gap-3">
           <Link
             to="/dashboard/marks"
-            className="p-4 rounded-lg border hover:border-primary hover:bg-accent/30 transition"
+            className="p-4 rounded-lg border bg-muted hover:border-primary hover:bg-accent/30 transition"
           >
             <ClipboardList className="h-5 w-5 text-primary mb-2" />
             <p className="font-medium">Enter term marks</p>
             <p className="text-xs text-muted-foreground">CA (out of 20) + Exam (out of 80)</p>
-          </Link>
-          <Link
-            to="/dashboard/reports"
-            className="p-4 rounded-lg border hover:border-primary hover:bg-accent/30 transition"
-          >
-            <FileText className="h-5 w-5 text-primary mb-2" />
-            <p className="font-medium">Generate report card</p>
-            <p className="text-xs text-muted-foreground">Print, save PDF, share</p>
           </Link>
         </div>
       </Card>

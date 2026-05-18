@@ -31,6 +31,7 @@ const K = {
   adminPassword: NS + "adminPassword",
   theme: NS + "theme",
   paperGradingConfig: NS + "paperGradingConfig",
+  paperGradingTarget: NS + "paperGradingTarget",
 };
 
 function read<T>(key: string, fallback: T): T {
@@ -209,6 +210,7 @@ export function ensureInitialized() {
   write<Combination[]>(K.combinations, defaultCombinations());
   write<AuthInfo | null>(K.auth, null); // not yet set — first-time setup
   write<Record<string, import("./types").PaperGradingMode>>(K.paperGradingConfig, {});
+  write<Record<string, string>>(K.paperGradingTarget, {});
   window.localStorage.setItem(K.initialized, "1");
 }
 
@@ -352,6 +354,17 @@ export function setPaperGradingConfig(subject: string, mode: "individual" | "pai
   const configs = read<Record<string, "individual" | "pairs" | "all">>(K.paperGradingConfig, {});
   configs[subject] = mode;
   write(K.paperGradingConfig, configs);
+}
+
+export function getPaperGradingTarget(subject: string): string | null {
+  const targets = read<Record<string, string>>(K.paperGradingTarget, {});
+  return targets[subject] ?? null;
+}
+
+export function setPaperGradingTarget(subject: string, target: string) {
+  const targets = read<Record<string, string>>(K.paperGradingTarget, {});
+  targets[subject] = target;
+  write(K.paperGradingTarget, targets);
 }
 
 export const getCombinations = () => read<Combination[]>(K.combinations, []);
