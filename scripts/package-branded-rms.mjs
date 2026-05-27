@@ -8,7 +8,7 @@ import Jimp from "jimp";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const rootDir = resolve(__dirname, "..");
-const configArg = process.argv[2] ?? "light-distributor/branding.json";
+const configArg = process.argv[2] ?? "branded/branding.json";
 const destinationArg = process.argv[3] || "";
 const configPath = resolve(rootDir, configArg);
 const distClientDir = resolve(rootDir, "dist", "client");
@@ -305,24 +305,20 @@ pub const BRANDING_JSON: &str = r####"${brandingJsonString}"####;
   console.log("✓ Native build completed.");
   await copyNativeBundleToDestination(destinationArg);
 
-  // Use the light-distributor's index.html as the base template
-  const lightDistIndexPath = join(rootDir, "light-distributor", "index.html");
   const indexPath = join(brandedDir, "index.html");
   
   try {
-    const indexHtml = await readFile(lightDistIndexPath, "utf-8");
+    let indexHtml = await readFile(indexPath, "utf-8");
     if (!indexHtml.includes("branding-boot.js")) {
-      const patched = indexHtml.replace(
+      indexHtml = indexHtml.replace(
         /<\/head>/i,
         `  <script src="branding-boot.js"></script>\n</head>`,
       );
-      await writeFile(indexPath, patched, "utf-8");
-    } else {
       await writeFile(indexPath, indexHtml, "utf-8");
     }
-    console.log(`✓ Created index.html with branding boot script`);
+    console.log(`✓ Patched ${indexPath} with branding boot script`);
   } catch (error) {
-    throw new Error(`Failed to create index.html: ${error.message}`);
+    throw new Error(`Failed to patch ${indexPath}: ${error.message}`);
   }
 
   await writeFile(

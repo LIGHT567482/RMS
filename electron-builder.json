@@ -1,0 +1,54 @@
+{
+  "appId": "com.standardsecondaryschool.rms",
+  "productName": "S.S.S RMS",
+  "files": [
+    "dist/**/*",
+    "node_modules/**/*",
+    "electron/**/*",
+    "branded/**/*",
+    "public/**/*"
+  ],
+  "directories": {
+    "output": "dist-electron",
+    "buildResources": "public"
+  },
+  "artifactName": "${productName}-${version}-${arch}.${ext}",
+  "win": {
+    "target": [
+      {
+        "target": "nsis",
+        "arch": [
+          "x64"
+        ]
+      },
+      {
+        "target": "msi",
+        "arch": [
+          "x64"
+        ]
+      },
+      {
+        "target": "portable",
+        "arch": [
+          "x64"
+        ]
+      }
+    ],
+    "certificateFile": null,
+    "certificatePassword": null,
+    "signingHashAlgorithms": [
+      "sha256"
+    ],
+    "sign": null
+  },
+  "nsis": {
+    "oneClick": false,
+    "allowToChangeInstallationDirectory": true,
+    "createDesktopShortcut": true,
+    "createStartMenuShortcut": true,
+    "shortcutName": "S.S.S RMS"
+  },
+  "msi": {
+    "upgradeCode": "{1F1C2D4E-5A6B-7C8D-9E0F-1A2B3C4D5E6F}"
+  }
+}

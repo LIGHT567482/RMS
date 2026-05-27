@@ -40,14 +40,14 @@ cp .env.example .env
 npm run dev
 ```
 
-## LIGHT DISTRIBUTOR
+## BRANDED BUILD
 
-The branding system is separate from the RMS application. Use `light-distributor/index.html` to create school branding packages independently.
+The branding system is separate from the RMS application. Place your branding file in the `branded` folder as `branded/branding.json`.
 
-To build a branded RMS distribution from an exported branding file, run:
+To build a branded RMS distribution from that file, run:
 
 ```bash
-npm run package:branded -- light-distributor/branding.json
+npm run package:branded
 ```
 
 # Build for production
