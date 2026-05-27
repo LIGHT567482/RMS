@@ -7,8 +7,12 @@
     "dev": "vite dev",
     "build": "vite build",
     "build:dev": "vite build --mode development",
+    "package:branded:tauri": "node ./scripts/package-branded-rms.mjs light-distributor/branding.json",
+    "ld:desktop": "npm --prefix light-distributor run start",
+    "ld:package": "npm --prefix light-distributor run package",
     "preview": "vite preview",
     "pdf:generate": "node ./scripts/generateReportPdf.mjs",
+    "package:branded": "node ./scripts/package-branded-rms.mjs",
     "lint": "eslint .",
     "format": "prettier --write ."
   },
@@ -84,10 +88,11 @@
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.20",
     "globals": "^15.15.0",
+    "jimp": "^0.22.12",
     "prettier": "^3.7.3",
+    "puppeteer": "^20.1.0",
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.56.1",
-    "vite": "^7.3.1",
-    "puppeteer": "^20.1.0"
+    "vite": "^7.3.1"
   }
 }

@@ -18,7 +18,7 @@ import { Route as DashboardSettingsRouteImport } from './routes/dashboard.settin
 import { Route as DashboardReportsRouteImport } from './routes/dashboard.reports'
 import { Route as DashboardProjectWorkRouteImport } from './routes/dashboard.project-work'
 import { Route as DashboardMarksRouteImport } from './routes/dashboard.marks'
-import { Route as DashboardDistributorRouteImport } from './routes/dashboard.distributor'
+import { Route as DashboardContinuousAssessmentRouteImport } from './routes/dashboard.continuous-assessment'
 
 const DashboardRoute = DashboardRouteImport.update({
   id: '/dashboard',
@@ -65,16 +65,17 @@ const DashboardMarksRoute = DashboardMarksRouteImport.update({
   path: '/marks',
   getParentRoute: () => DashboardRoute,
 } as any)
-const DashboardDistributorRoute = DashboardDistributorRouteImport.update({
-  id: '/distributor',
-  path: '/distributor',
-  getParentRoute: () => DashboardRoute,
-} as any)
+const DashboardContinuousAssessmentRoute =
+  DashboardContinuousAssessmentRouteImport.update({
+    id: '/continuous-assessment',
+    path: '/continuous-assessment',
+    getParentRoute: () => DashboardRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRouteWithChildren
-  '/dashboard/distributor': typeof DashboardDistributorRoute
+  '/dashboard/continuous-assessment': typeof DashboardContinuousAssessmentRoute
   '/dashboard/marks': typeof DashboardMarksRoute
   '/dashboard/project-work': typeof DashboardProjectWorkRoute
   '/dashboard/reports': typeof DashboardReportsRoute
@@ -85,7 +86,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/dashboard/distributor': typeof DashboardDistributorRoute
+  '/dashboard/continuous-assessment': typeof DashboardContinuousAssessmentRoute
   '/dashboard/marks': typeof DashboardMarksRoute
   '/dashboard/project-work': typeof DashboardProjectWorkRoute
   '/dashboard/reports': typeof DashboardReportsRoute
@@ -98,7 +99,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRouteWithChildren
-  '/dashboard/distributor': typeof DashboardDistributorRoute
+  '/dashboard/continuous-assessment': typeof DashboardContinuousAssessmentRoute
   '/dashboard/marks': typeof DashboardMarksRoute
   '/dashboard/project-work': typeof DashboardProjectWorkRoute
   '/dashboard/reports': typeof DashboardReportsRoute
@@ -112,7 +113,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/dashboard'
-    | '/dashboard/distributor'
+    | '/dashboard/continuous-assessment'
     | '/dashboard/marks'
     | '/dashboard/project-work'
     | '/dashboard/reports'
@@ -123,7 +124,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
-    | '/dashboard/distributor'
+    | '/dashboard/continuous-assessment'
     | '/dashboard/marks'
     | '/dashboard/project-work'
     | '/dashboard/reports'
@@ -135,7 +136,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/dashboard'
-    | '/dashboard/distributor'
+    | '/dashboard/continuous-assessment'
     | '/dashboard/marks'
     | '/dashboard/project-work'
     | '/dashboard/reports'
@@ -215,18 +216,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardMarksRouteImport
       parentRoute: typeof DashboardRoute
     }
-    '/dashboard/distributor': {
-      id: '/dashboard/distributor'
-      path: '/distributor'
-      fullPath: '/dashboard/distributor'
-      preLoaderRoute: typeof DashboardDistributorRouteImport
+    '/dashboard/continuous-assessment': {
+      id: '/dashboard/continuous-assessment'
+      path: '/continuous-assessment'
+      fullPath: '/dashboard/continuous-assessment'
+      preLoaderRoute: typeof DashboardContinuousAssessmentRouteImport
       parentRoute: typeof DashboardRoute
     }
   }
 }
 
 interface DashboardRouteChildren {
-  DashboardDistributorRoute: typeof DashboardDistributorRoute
+  DashboardContinuousAssessmentRoute: typeof DashboardContinuousAssessmentRoute
   DashboardMarksRoute: typeof DashboardMarksRoute
   DashboardProjectWorkRoute: typeof DashboardProjectWorkRoute
   DashboardReportsRoute: typeof DashboardReportsRoute
@@ -237,7 +238,7 @@ interface DashboardRouteChildren {
 }
 
 const DashboardRouteChildren: DashboardRouteChildren = {
-  DashboardDistributorRoute: DashboardDistributorRoute,
+  DashboardContinuousAssessmentRoute: DashboardContinuousAssessmentRoute,
   DashboardMarksRoute: DashboardMarksRoute,
   DashboardProjectWorkRoute: DashboardProjectWorkRoute,
   DashboardReportsRoute: DashboardReportsRoute,

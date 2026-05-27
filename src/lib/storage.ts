@@ -6,6 +6,7 @@ import {
   ADVANCED_SUBJECTS,
   ADVANCED_SPECIAL_SUBJECTS,
   type AuthInfo,
+  type ClassLevel,
   type Mark,
   type ProjectWork,
   type SchoolInfo,
@@ -32,6 +33,7 @@ const K = {
   theme: NS + "theme",
   paperGradingConfig: NS + "paperGradingConfig",
   paperGradingTarget: NS + "paperGradingTarget",
+  continuousAssessments: NS + "continuousAssessments",
 };
 
 function read<T>(key: string, fallback: T): T {
@@ -158,6 +160,12 @@ export const defaultSchool: SchoolInfo = {
   reportCardColor: "#3c64ff",
   reportCardWatermarkColored: true,
   selectedExamSets: [],
+  selectedExamSetsOrdinary: [],
+  selectedExamSetsAdvanced: [],
+  reportCardExamSetsOrdinary: [],
+  reportCardExamSetsAdvanced: [],
+  examSetWeights: {},
+  classStreams: {},
   studentIdentificationPrefix: "",
   issueDate: "",
   gradingScales: {
@@ -243,6 +251,31 @@ export function deleteStudent(id: string) {
   setStudents(getStudents().filter((s) => s.id !== id));
   setMarks(getMarks().filter((m) => m.studentId !== id));
   setProjects(getProjects().filter((p) => p.studentId !== id));
+}
+
+export function getClassStreams(classLevel: ClassLevel) {
+  const school = getSchool();
+  return school.classStreams?.[classLevel] ?? [];
+}
+
+export function setClassStreams(classLevel: ClassLevel, streams: string[]) {
+  const school = getSchool();
+  const classStreams = { ...(school.classStreams ?? {}), [classLevel]: streams };
+  setSchool({ ...school, classStreams });
+}
+
+export function addClassStream(classLevel: ClassLevel, stream: string) {
+  const current = getClassStreams(classLevel);
+  if (current.includes(stream)) return false;
+  setClassStreams(classLevel, [...current, stream]);
+  return true;
+}
+
+export function deleteClassStream(classLevel: ClassLevel, stream: string) {
+  const school = getSchool();
+  const classStreams = { ...(school.classStreams ?? {}) };
+  classStreams[classLevel] = classStreams[classLevel]?.filter((s) => s !== stream) ?? [];
+  setSchool({ ...school, classStreams });
 }
 
 // === Subjects (Separate Ordinary and Advanced) ===
@@ -430,6 +463,58 @@ export function upsertProject(p: ProjectWork) {
   setProjects([...all]);
 }
 
+// === Continuous Assessments (CA) ===
+export const getCATables = () => read<any[]>(K.continuousAssessments, []);
+export const setCATables = (v: any[]) => write(K.continuousAssessments, v);
+export function upsertCATable(table: any) {
+  const all = getCATables();
+  const i = all.findIndex((x) => x.id === table.id);
+  if (i >= 0) all[i] = table;
+  else all.push(table);
+  setCATables([...all]);
+}
+
+export function getCATableFor(subject: string, classLevel: string, term: string) {
+  const all = getCATables();
+  const found =
+    all.find((t) => t.subject === subject && t.classLevel === classLevel && t.term === term) ||
+    all.find((t) => t.subject === subject && t.classLevel === classLevel && !t.term);
+  if (found) {
+    if (!found.term) {
+      found.term = term;
+      upsertCATable(found);
+    }
+    return found;
+  }
+
+  // Create default table structure with students for the class and term
+  const students = getStudents().filter((s) => s.classLevel === classLevel);
+  const table = {
+    id: `CA:${subject}:${classLevel}:${term}`,
+    subject,
+    classLevel,
+    term,
+    columns: [], // { id, name }
+    rows: students.map((s) => ({ studentId: s.id, values: {} })),
+    createdAt: Date.now(),
+  };
+  upsertCATable(table);
+  return table;
+}
+
+export function upsertCAValue(subject: string, classLevel: string, term: string, studentId: string, columnId: string, value: number | string) {
+  const table = getCATableFor(subject, classLevel, term);
+  const rows = table.rows || [];
+  const r = rows.find((x: any) => x.studentId === studentId);
+  if (r) {
+    r.values = { ...(r.values || {}), [columnId]: value };
+  } else {
+    rows.push({ studentId, values: { [columnId]: value } });
+  }
+  table.rows = rows;
+  upsertCATable(table);
+}
+
 // === Admin Password ===
 export const getAdminPassword = () => read<string | null>(K.adminPassword, null);
 export const setAdminPassword = (v: string) => write(K.adminPassword, v);
@@ -437,7 +522,26 @@ export const setAdminPassword = (v: string) => write(K.adminPassword, v);
 // === Reset everything ===
 export function factoryReset() {
   if (typeof window === "undefined") return;
+  // Remove all known keys
   Object.values(K).forEach((k) => window.localStorage.removeItem(k));
+  // Also remove any keys in localStorage that use our namespace prefix to ensure no leftover data
+  try {
+    for (let i = 0; i < window.localStorage.length; i++) {
+      const key = window.localStorage.key(i);
+      if (key && key.startsWith(NS)) {
+        window.localStorage.removeItem(key);
+        i -= 1; // adjust index because length changed
+      }
+    }
+  } catch {
+    // ignore any errors iterating localStorage
+  }
+
+  // Clear caches (if any were created by the app)
+  if (typeof caches !== "undefined" && caches && typeof caches.keys === "function") {
+    caches.keys().then((keys) => Promise.all(keys.map((k) => caches.delete(k)))).catch(() => {});
+  }
+
   ensureInitialized();
 }
 

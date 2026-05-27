@@ -1,1 +1,18 @@
-PROJECT_ID="tabzfyayfksfinjmgjoz"
+# Local Supabase CLI configuration.
+# Use this config to keep the Supabase development environment entirely local.
+# Run `supabase start` from the repo root once the Supabase CLI is installed.
+#
+# This config is intentionally local-only and does not reference a remote Supabase project.
+
+[db]
+host = "127.0.0.1"
+port = 54321
+name = "postgres"
+user = "postgres"
+password = "postgres"
+
+[db.migrations]
+schema_paths = ["./schemas/*.sql"]
+
+[db.seed]
+sql_paths = ["./seed.sql"]

@@ -4,7 +4,6 @@ import {
   useStore,
   getSchool,
   setSchool,
-  defaultSchool,
   factoryReset,
   getAuth,
   setAuth,
@@ -61,13 +60,13 @@ import {
   Save,
   AlertTriangle,
   KeyRound,
-  School,
   ShieldAlert,
   Sliders,
   BookOpen,
   Trash2,
   Users,
   FileText,
+  LayoutGrid,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useNavigate } from "@tanstack/react-router";
@@ -76,7 +75,8 @@ import {
   OPTIONAL_SUBJECTS,
   ADVANCED_SUBJECTS,
   ALL_CLASSES,
-  EXAM_SETS,
+  DEFAULT_EXAM_SETS,
+  type ClassLevel,
   type Combination,
   type ExamSet,
 } from "@/lib/types";
@@ -122,8 +122,7 @@ function SettingsPage() {
   const auth = useAuth();
   const navigate = useNavigate();
   const school = useStore(getSchool);
-  const [activeSection, setActiveSection] = useState<string | null>(null);
-  const [draft, setDraft] = useState(school);
+  const [activeSection, setActiveSection] = useState<string>("security");
   const [newCode, setNewCode] = useState("");
   const [recoveryEmail, setRecoveryEmail] = useState("");
   const [recoveryPassword, setRecoveryPassword] = useState("");
@@ -158,6 +157,8 @@ function SettingsPage() {
   const [selectedPaperMode, setSelectedPaperMode] = useState<"individual" | "pairs" | "all">(
     "individual",
   );
+  const [selectedStreamClass, setSelectedStreamClass] = useState<ClassLevel>("S.1");
+  const [newStreamName, setNewStreamName] = useState("");
   const [selectedPaperTarget, setSelectedPaperTarget] = useState("All Papers");
   const [subjectToDelete, setSubjectToDelete] = useState<{ id: string; name: string } | null>(null);
 
@@ -323,6 +324,39 @@ function SettingsPage() {
     );
   }
 
+  function addNewClassStream() {
+    const trimmed = newStreamName.trim();
+    if (!trimmed) {
+      return toast.error("Stream name cannot be empty.");
+    }
+    const current = school.classStreams?.[selectedStreamClass] ?? [];
+    if (current.includes(trimmed)) {
+      return toast.error(`Stream ${trimmed} already exists for ${selectedStreamClass}.`);
+    }
+
+    setSchool({
+      ...school,
+      classStreams: {
+        ...(school.classStreams ?? {}),
+        [selectedStreamClass]: [...current, trimmed],
+      },
+    });
+    setNewStreamName("");
+    toast.success(`Added stream ${trimmed} to ${selectedStreamClass}.`);
+  }
+
+  function removeClassStream(classLevel: ClassLevel, stream: string) {
+    const current = school.classStreams?.[classLevel] ?? [];
+    setSchool({
+      ...school,
+      classStreams: {
+        ...(school.classStreams ?? {}),
+        [classLevel]: current.filter((item) => item !== stream),
+      },
+    });
+    toast.success(`Removed stream ${stream} from ${classLevel}.`);
+  }
+
   function handleAddCombination() {
     if (
       !newCombination.name.trim() ||
@@ -406,27 +440,6 @@ function SettingsPage() {
     );
   }
 
-  function handleLogo(e: React.ChangeEvent<HTMLInputElement>) {
-    const f = e.target.files?.[0];
-    if (!f) return;
-    const r = new FileReader();
-    r.onload = () => setDraft({ ...draft, logoDataUrl: r.result as string });
-    r.readAsDataURL(f);
-  }
-
-  function handleBackgroundImage(e: React.ChangeEvent<HTMLInputElement>) {
-    const f = e.target.files?.[0];
-    if (!f) return;
-    const r = new FileReader();
-    r.onload = () => setDraft({ ...draft, signInBackgroundUrl: r.result as string });
-    r.readAsDataURL(f);
-  }
-
-  function saveSchool() {
-    setSchool({ ...defaultSchool, ...draft });
-    toast.success("School details saved.");
-  }
-
   function changeCode() {
     if (!/^\d{5,10}$/.test(newCode)) return toast.error("Code must be 5–10 digits.");
     auth.resetCode(newCode);
@@ -437,8 +450,12 @@ function SettingsPage() {
   return (
     <div className="space-y-6">
       <div className="max-w-7xl mx-auto">
-        <h1 className="font-display text-3xl">Settings</h1>
-        <p className="text-muted-foreground">School details, security, and system reset.</p>
+        <div className="flex items-start gap-4">
+          <div className="flex-1">
+            <h1 className="font-display text-3xl">Settings</h1>
+            <p className="text-muted-foreground">Configure security, examination, and academic settings.</p>
+          </div>
+        </div>
       </div>
 
       <div className="max-w-7xl mx-auto">
@@ -447,13 +464,6 @@ function SettingsPage() {
           <div className="col-span-1">
             <Card className="sticky top-6">
               <div className="p-4 space-y-2">
-                <NavButton
-                  icon={School}
-                  label="School Details"
-                  section="school"
-                  active={activeSection === "school"}
-                  onClick={() => setActiveSection("school")}
-                />
                 <NavButton
                   icon={BookOpen}
                   label="Candidate Reg. No."
@@ -482,6 +492,20 @@ function SettingsPage() {
                   }}
                 />
                 <NavButton
+                  icon={LayoutGrid}
+                  label="Exam Sets"
+                  section="examSets"
+                  active={activeSection === "examSets"}
+                  onClick={() => setActiveSection("examSets")}
+                />
+                <NavButton
+                  icon={Sliders}
+                  label="Appearance"
+                  section="appearance"
+                  active={activeSection === "appearance"}
+                  onClick={() => setActiveSection("appearance")}
+                />
+                <NavButton
                   icon={ShieldAlert}
                   label="Recovery & Security"
                   section="security"
@@ -494,6 +518,13 @@ function SettingsPage() {
                   section="subjects"
                   active={activeSection === "subjects"}
                   onClick={() => setActiveSection("subjects")}
+                />
+                <NavButton
+                  icon={LayoutGrid}
+                  label="Class Streams"
+                  section="streams"
+                  active={activeSection === "streams"}
+                  onClick={() => setActiveSection("streams")}
                 />
                 <NavButton
                   icon={Sliders}
@@ -516,21 +547,7 @@ function SettingsPage() {
                   active={activeSection === "combinations"}
                   onClick={() => setActiveSection("combinations")}
                 />
-                <NavButton
-                  icon={KeyRound}
-                  label="Reset Access Code"
-                  section="accessCode"
-                  active={activeSection === "accessCode"}
-                  onClick={() => setActiveSection("accessCode")}
-                />
-                <NavButton
-                  icon={AlertTriangle}
-                  label="Danger Zone"
-                  section="danger"
-                  active={activeSection === "danger"}
-                  onClick={() => setActiveSection("danger")}
-                  variant="destructive"
-                />
+                {/* Access code and danger zone are now grouped under Recovery & Security */}
               </div>
             </Card>
           </div>
@@ -541,8 +558,6 @@ function SettingsPage() {
               <Card className="p-12 text-center text-muted-foreground">
                 <p className="text-lg">Select a settings section from the menu on the left</p>
               </Card>
-            ) : activeSection === "school" ? (
-              <SchoolDetailsSection draft={draft} setDraft={setDraft} onSave={saveSchool} />
             ) : activeSection === "candidates" ? (
               <CandidatesSection students={students} />
             ) : activeSection === "security" ? (
@@ -556,7 +571,14 @@ function SettingsPage() {
                 recoveryPassword={recoveryPassword}
                 setRecoveryPassword={setRecoveryPassword}
                 onSave={saveRecoverySettings}
+                newCode={newCode}
+                setNewCode={setNewCode}
+                onChange={changeCode}
+                auth={auth}
+                navigate={navigate}
               />
+            ) : activeSection === "appearance" ? (
+              <AppearanceSection />
             ) : activeSection === "subjects" ? (
               <SubjectCatalogSection
                 selectedLevel={selectedLevel}
@@ -601,6 +623,16 @@ function SettingsPage() {
                 setSubjectPapers={setSubjectPapers}
                 onSave={saveSubjectPapers}
               />
+            ) : activeSection === "streams" ? (
+              <ClassStreamsSection
+                selectedClass={selectedStreamClass}
+                setSelectedClass={setSelectedStreamClass}
+                newStreamName={newStreamName}
+                setNewStreamName={setNewStreamName}
+                classStreams={school.classStreams ?? {}}
+                onAddStream={addNewClassStream}
+                onRemoveStream={removeClassStream}
+              />
             ) : activeSection === "combinations" ? (
               <CombinationsSection
                 newCombination={newCombination}
@@ -609,10 +641,8 @@ function SettingsPage() {
                 onAddCombination={handleAddCombination}
                 onDeleteCombination={handleDeleteCombination}
               />
-            ) : activeSection === "accessCode" ? (
-              <AccessCodeSection newCode={newCode} setNewCode={setNewCode} onChange={changeCode} />
-            ) : activeSection === "danger" ? (
-              <DangerZoneSection auth={auth} navigate={navigate} />
+            ) : activeSection === "examSets" ? (
+              <ExamSetsSection />
             ) : null}
           </div>
         </div>
@@ -689,285 +719,469 @@ function NavButton({
   );
 }
 
+function ExamSetsSection() {
+  const school = useStore(getSchool);
+  const defaultSets =
+    school.selectedExamSets && school.selectedExamSets.length > 0
+      ? school.selectedExamSets
+      : DEFAULT_EXAM_SETS;
+  const [ordinarySets, setOrdinarySets] = useState<ExamSet[]>(
+    school.selectedExamSetsOrdinary && school.selectedExamSetsOrdinary.length > 0
+      ? school.selectedExamSetsOrdinary
+      : defaultSets,
+  );
+  const [advancedSets, setAdvancedSets] = useState<ExamSet[]>(
+    school.selectedExamSetsAdvanced && school.selectedExamSetsAdvanced.length > 0
+      ? school.selectedExamSetsAdvanced
+      : defaultSets,
+  );
+  const [weights, setWeights] = useState<Record<string, number>>(school.examSetWeights ?? {});
+  const [reportOrdinarySet, setReportOrdinarySet] = useState<ExamSet>(
+    (school.reportCardExamSetsOrdinary && school.reportCardExamSetsOrdinary[0]) ||
+      (school.selectedExamSetsOrdinary && school.selectedExamSetsOrdinary[0]) ||
+      defaultSets[0],
+  );
+  const [reportAdvancedSet, setReportAdvancedSet] = useState<ExamSet>(
+    (school.reportCardExamSetsAdvanced && school.reportCardExamSetsAdvanced[0]) ||
+      (school.selectedExamSetsAdvanced && school.selectedExamSetsAdvanced[0]) ||
+      defaultSets[0],
+  );
+  const [newSetCode, setNewSetCode] = useState("");
+  const [newSetWeight, setNewSetWeight] = useState<string>("");
+  const [newSetTarget, setNewSetTarget] = useState<"ordinary" | "advanced" | "both">("ordinary");
+
+  function addNewSet() {
+    const code = newSetCode.trim().toUpperCase();
+    if (!code) return toast.error("Enter an exam set code.");
+    if (
+      (newSetTarget !== "advanced" && ordinarySets.includes(code)) ||
+      (newSetTarget !== "ordinary" && advancedSets.includes(code))
+    ) {
+      return toast.error("Exam set already exists for the selected level.");
+    }
+
+    if (newSetTarget !== "advanced") {
+      setOrdinarySets((current) => (current.includes(code) ? current : [...current, code]));
+    }
+    if (newSetTarget !== "ordinary") {
+      setAdvancedSets((current) => (current.includes(code) ? current : [...current, code]));
+    }
+
+    if (newSetWeight.trim()) {
+      const n = Number(newSetWeight);
+      if (!Number.isNaN(n)) setWeights((w) => ({ ...w, [code]: n }));
+    }
+    setNewSetCode("");
+    setNewSetWeight("");
+    toast.success("Exam set added locally. Save to persist.");
+  }
+
+  function removeOrdinarySet(code: string) {
+    setOrdinarySets((s) => s.filter((x) => x !== code));
+    if (reportOrdinarySet === code) {
+      const remaining = ordinarySets.filter((x) => x !== code);
+      setReportOrdinarySet(remaining[0] ?? defaultSets[0]);
+    }
+  }
+
+  function removeAdvancedSet(code: string) {
+    setAdvancedSets((s) => s.filter((x) => x !== code));
+    if (reportAdvancedSet === code) {
+      const remaining = advancedSets.filter((x) => x !== code);
+      setReportAdvancedSet(remaining[0] ?? defaultSets[0]);
+    }
+  }
+
+  function saveSets() {
+    setSchool({
+      ...school,
+      selectedExamSets: Array.from(new Set([...ordinarySets, ...advancedSets])),
+      selectedExamSetsOrdinary: ordinarySets,
+      selectedExamSetsAdvanced: advancedSets,
+      reportCardExamSetsOrdinary: [reportOrdinarySet],
+      reportCardExamSetsAdvanced: [reportAdvancedSet],
+      examSetWeights: weights,
+    });
+    toast.success("Exam sets saved.");
+  }
+
+  return (
+    <div>
+      <h2 className="font-semibold text-lg">Exam Sets</h2>
+      <p className="text-sm text-muted-foreground mb-4">
+        Configure exam set codes and the maximum marks each exam set is graded out of. Choose one
+        exam set per level for report card generation under the selected exam sets.
+      </p>
+
+      <Card className="p-4 mb-4">
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1.5fr)_10rem_10rem] items-end">
+          <div>
+            <Label>Code</Label>
+            <Input
+              value={newSetCode}
+              onChange={(e) => setNewSetCode(e.target.value)}
+              placeholder="E.g. B.O.T"
+            />
+          </div>
+          <div>
+            <Label>Max Marks</Label>
+            <Input
+              value={newSetWeight}
+              onChange={(e) => setNewSetWeight(e.target.value)}
+              placeholder="Optional max marks"
+            />
+          </div>
+          <div>
+            <Label>Applies to</Label>
+            <Select value={newSetTarget} onValueChange={(v) => setNewSetTarget(v as "ordinary" | "advanced" | "both") }>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ordinary">Ordinary Level</SelectItem>
+                <SelectItem value="advanced">Advanced Level</SelectItem>
+                <SelectItem value="both">Both Levels</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Button className="w-full" onClick={addNewSet}>
+              Add
+            </Button>
+          </div>
+        </div>
+      </Card>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card className="p-4">
+          <h3 className="font-semibold mb-3">Ordinary Level Sets</h3>
+          <p className="text-xs text-muted-foreground mb-3">
+            Choose the one exam set that will be used for generating Ordinary level report cards.
+          </p>
+          <table className="w-full text-sm">
+            <thead>
+              <tr>
+                <th className="text-left p-2">Code</th>
+                <th className="text-left p-2">Max Marks</th>
+                <th className="text-left p-2">Report card set</th>
+                <th className="text-left p-2">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {ordinarySets.map((s, index) => (
+                <tr key={`${s}-${index}`} className="border-t">
+                  <td className="p-2 font-medium">{s}</td>
+                  <td className="p-2">{weights[s] ?? "—"}</td>
+                  <td className="p-2">
+                    <input
+                      type="radio"
+                      name="report-ordinary-set"
+                      checked={reportOrdinarySet === s}
+                      onChange={() => setReportOrdinarySet(s)}
+                      className="mr-2"
+                      aria-label={`Use ${s} for Ordinary report cards`}
+                      title={`Use ${s} for Ordinary report cards`}
+                    />
+                    <span className="inline-block">Use</span>
+                  </td>
+                  <td className="p-2">
+                    <Button variant="destructive" size="sm" onClick={() => removeOrdinarySet(s)}>
+                      Remove
+                    </Button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </Card>
+
+        <Card className="p-4">
+          <h3 className="font-semibold mb-3">Advanced Level Sets</h3>
+          <p className="text-xs text-muted-foreground mb-3">
+            Choose the one exam set that will be used for generating Advanced level report cards.
+          </p>
+          <table className="w-full text-sm">
+            <thead>
+              <tr>
+                <th className="text-left p-2">Code</th>
+                <th className="text-left p-2">Max Marks</th>
+                <th className="text-left p-2">Report card set</th>
+                <th className="text-left p-2">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {advancedSets.map((s, index) => (
+                <tr key={`${s}-${index}`} className="border-t">
+                  <td className="p-2 font-medium">{s}</td>
+                  <td className="p-2">{weights[s] ?? "—"}</td>
+                  <td className="p-2">
+                    <input
+                      type="radio"
+                      name="report-advanced-set"
+                      checked={reportAdvancedSet === s}
+                      onChange={() => setReportAdvancedSet(s)}
+                      className="mr-2"
+                      aria-label={`Use ${s} for Advanced report cards`}
+                      title={`Use ${s} for Advanced report cards`}
+                    />
+                    <span className="inline-block">Use</span>
+                  </td>
+                  <td className="p-2">
+                    <Button variant="destructive" size="sm" onClick={() => removeAdvancedSet(s)}>
+                      Remove
+                    </Button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </Card>
+      </div>
+
+      <Card className="p-4 my-4">
+        <div className="flex flex-col gap-4">
+          <div>
+            <Label>Max Marks</Label>
+            <p className="text-xs text-muted-foreground mb-2">
+              Assign the maximum marks each exam set is graded out of. These values dominate report calculation and make the system adaptive to the exam set mark scheme.
+            </p>
+          </div>
+          <div className="grid gap-3">
+            {Array.from(new Set([...ordinarySets, ...advancedSets])).map((s) => (
+              <div key={s} className="grid grid-cols-[1fr_8rem] gap-3 items-end">
+                <div>
+                  <Label>{s}</Label>
+                  <Input
+                    type="number"
+                    value={weights[s] ?? ""}
+                    onChange={(e) => setWeights((w) => ({ ...w, [s]: Number(e.target.value) }))}
+                    placeholder="(none)"
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </Card>
+
+      <div className="flex gap-2">
+        <Button onClick={saveSets}>
+          <Save className="h-4 w-4 mr-2" /> Save Exam Sets
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 // Section Components
-function SchoolDetailsSection({
-  draft,
-  setDraft,
-  onSave,
+function ClassStreamsSection({
+  selectedClass,
+  setSelectedClass,
+  newStreamName,
+  setNewStreamName,
+  classStreams,
+  onAddStream,
+  onRemoveStream,
 }: {
-  draft: any;
-  setDraft: (draft: any) => void;
-  onSave: () => void;
+  selectedClass: ClassLevel;
+  setSelectedClass: (classLevel: ClassLevel) => void;
+  newStreamName: string;
+  setNewStreamName: (value: string) => void;
+  classStreams: Record<ClassLevel, string[]>;
+  onAddStream: () => void;
+  onRemoveStream: (classLevel: ClassLevel, stream: string) => void;
 }) {
+  const streams = classStreams[selectedClass] ?? [];
+
   return (
     <Card className="p-6">
       <h2 className="font-semibold flex items-center gap-2 mb-4">
-        <School className="h-4 w-4" /> School Details
+        <LayoutGrid className="h-4 w-4" /> Class Streams / Branches
       </h2>
       <div className="grid sm:grid-cols-2 gap-4">
-        <div className="sm:col-span-2 flex items-center gap-4">
-          {draft.logoDataUrl ? (
-            <img
-              src={draft.logoDataUrl}
-              alt=""
-              className="h-20 w-20 rounded-full object-cover border-2 border-[oklch(0.78_0.14_80)]"
-            />
-          ) : (
-            <div className="h-20 w-20 rounded-full border-2 border-dashed flex items-center justify-center text-xs text-muted-foreground text-center">
-              SCHOOL
-              <br />
-              BADGE
-            </div>
-          )}
-          <div className="flex-1 space-y-3">
-            <div>
-              <Label>School Logo / Badge</Label>
-              <Input
-                type="file"
-                accept="image/*"
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  if (!f) return;
-                  const r = new FileReader();
-                  r.onload = () => setDraft({ ...draft, logoDataUrl: r.result as string });
-                  r.readAsDataURL(f);
-                }}
-              />
-            </div>
-            <div>
-              <Label>Sign In Background</Label>
-              <Input
-                type="file"
-                accept="image/*"
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  if (!f) return;
-                  const r = new FileReader();
-                  r.onload = () => setDraft({ ...draft, signInBackgroundUrl: r.result as string });
-                  r.readAsDataURL(f);
-                }}
-              />
-            </div>
-          </div>
+        <div>
+          <Label>Class</Label>
+          <Select value={selectedClass} onValueChange={(v) => setSelectedClass(v as ClassLevel)}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {ALL_CLASSES.map((level) => (
+                <SelectItem key={level} value={level}>
+                  {level}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
         <div>
-          <Label>School Name</Label>
+          <Label>New Stream / Branch</Label>
           <Input
-            value={draft.name}
-            onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+            value={newStreamName}
+            onChange={(e) => setNewStreamName(e.target.value)}
+            placeholder="A, B, North, Red, ..."
           />
-        </div>
-        <div>
-          <Label>Motto</Label>
-          <Input
-            value={draft.motto}
-            onChange={(e) => setDraft({ ...draft, motto: e.target.value })}
-          />
-        </div>
-        <div className="sm:col-span-2">
-          <Label>Address</Label>
-          <Input
-            value={draft.address}
-            onChange={(e) => setDraft({ ...draft, address: e.target.value })}
-          />
-        </div>
-        <div>
-          <Label>P.O. Box</Label>
-          <Input
-            value={draft.poBox}
-            onChange={(e) => setDraft({ ...draft, poBox: e.target.value })}
-          />
-        </div>
-        <div>
-          <Label>Email</Label>
-          <Input
-            value={draft.email}
-            onChange={(e) => setDraft({ ...draft, email: e.target.value })}
-          />
-        </div>
-        <div className="sm:col-span-2">
-          <Label>Telephone Numbers</Label>
-          <Input
-            placeholder="123456789/0987654321"
-            value={draft.telephones}
-            onChange={(e) =>
-              setDraft({ ...draft, telephones: e.target.value.replace(/[^0-9/ ]/g, "") })
-            }
-          />
-        </div>
-        <div>
-          <Label>Primary Color</Label>
-          <Input
-            type="color"
-            value={draft.primaryColor ?? "#3c64ff"}
-            onChange={(e) => setDraft({ ...draft, primaryColor: e.target.value })}
-          />
-        </div>
-        <div>
-          <Label>Accent Color</Label>
-          <Input
-            type="color"
-            value={draft.accentColor ?? "#f59e0b"}
-            onChange={(e) => setDraft({ ...draft, accentColor: e.target.value })}
-          />
-        </div>
-        <div>
-          <Label>Background Color</Label>
-          <Input
-            type="color"
-            value={draft.backgroundColor ?? "#f8fafc"}
-            onChange={(e) => setDraft({ ...draft, backgroundColor: e.target.value })}
-          />
-        </div>
-        <div>
-          <Label>Text Color (Light Mode)</Label>
-          <Input
-            type="color"
-            value={draft.foregroundColor ?? "#111111"}
-            onChange={(e) => setDraft({ ...draft, foregroundColor: e.target.value })}
-          />
-        </div>
-        <div>
-          <Label>Dark Mode Background</Label>
-          <Input
-            type="color"
-            value={draft.backgroundColorDark ?? "#0f172a"}
-            onChange={(e) => setDraft({ ...draft, backgroundColorDark: e.target.value })}
-          />
-        </div>
-        <div>
-          <Label>Text Color (Dark Mode)</Label>
-          <Input
-            type="color"
-            value={draft.foregroundColorDark ?? "#f8fafc"}
-            onChange={(e) => setDraft({ ...draft, foregroundColorDark: e.target.value })}
-          />
-        </div>
-        <div>
-          <Label>Report Card Page Color (O-Level)</Label>
-          <Input
-            type="color"
-            value={draft.reportCardPageColor ?? "#ffffff"}
-            onChange={(e) => setDraft({ ...draft, reportCardPageColor: e.target.value })}
-          />
-        </div>
-        <div>
-          <Label>Report Card Content Color (O-Level)</Label>
-          <Input
-            type="color"
-            value={draft.reportCardContentColor ?? "#111111"}
-            onChange={(e) => setDraft({ ...draft, reportCardContentColor: e.target.value })}
-          />
-        </div>
-        <div>
-          <Label>Report Card Heading Color (O-Level)</Label>
-          <Input
-            type="color"
-            value={draft.reportCardHeadingColor ?? "#3c64ff"}
-            onChange={(e) => setDraft({ ...draft, reportCardHeadingColor: e.target.value })}
-          />
-        </div>
-        <div>
-          <Label>Report Card Page Color (A-Level)</Label>
-          <Input
-            type="color"
-            value={draft.reportCardPageColorAdvanced ?? "#f8fafc"}
-            onChange={(e) =>
-              setDraft({ ...draft, reportCardPageColorAdvanced: e.target.value })
-            }
-          />
-        </div>
-        <div>
-          <Label>Report Card Content Color (A-Level)</Label>
-          <Input
-            type="color"
-            value={draft.reportCardContentColorAdvanced ?? "#111111"}
-            onChange={(e) =>
-              setDraft({ ...draft, reportCardContentColorAdvanced: e.target.value })
-            }
-          />
-        </div>
-        <div>
-          <Label>Report Card Heading Color (A-Level)</Label>
-          <Input
-            type="color"
-            value={draft.reportCardHeadingColorAdvanced ?? "#dc2626"}
-            onChange={(e) =>
-              setDraft({ ...draft, reportCardHeadingColorAdvanced: e.target.value })
-            }
-          />
-        </div>
-        <div className="sm:col-span-2">
-          <Label className="mb-2">Report Card Exam Sets</Label>
-          <div className="grid grid-cols-3 gap-3">
-            {EXAM_SETS.map((set) => {
-              const selected = draft.selectedExamSets?.includes(set) ?? false;
-              return (
-                <label
-                  key={set}
-                  className="inline-flex items-center gap-2 rounded border border-input px-3 py-2 text-sm"
-                >
-                  <Checkbox
-                    checked={selected}
-                    onCheckedChange={(checked) => {
-                      const current = draft.selectedExamSets ?? ["EOT"];
-                      if (checked) {
-                        setDraft({
-                          ...draft,
-                          selectedExamSets: Array.from(new Set([...current, set])),
-                        });
-                      } else if (current.length > 1) {
-                        setDraft({
-                          ...draft,
-                          selectedExamSets: current.filter((item) => item !== set),
-                        });
-                      }
-                    }}
-                  />
-                  <span>{set}</span>
-                </label>
-              );
-            })}
-          </div>
-          <p className="text-xs text-muted-foreground mt-2">
-            Choose which exam sets should appear on report cards and be used to calculate
-            average subject marks.
-          </p>
-        </div>
-        <div>
-          <Label>Student ID Prefix</Label>
-          <Input
-            value={draft.studentIdentificationPrefix ?? ""}
-            onChange={(e) =>
-              setDraft({
-                ...draft,
-                studentIdentificationPrefix: e.target.value
-                  .replace(/[^A-Za-z0-9]/g, "")
-                  .toUpperCase(),
-              })
-            }
-            placeholder="e.g. LIGHT"
-          />
-          <p className="text-xs text-muted-foreground mt-2">
-            Prefix used when generating Student Identification Numbers.
-          </p>
-        </div>
-        <div className="sm:col-span-2 flex items-center gap-3">
-          <Switch
-            id="watermark-colored"
-            checked={draft.reportCardWatermarkColored ?? true}
-            onCheckedChange={(value) =>
-              setDraft({ ...draft, reportCardWatermarkColored: Boolean(value) })
-            }
-          />
-          <Label htmlFor="watermark-colored" className="mb-0">
-            Colored report card watermark
-          </Label>
         </div>
       </div>
-      <div className="mt-5 flex justify-end">
-        <Button onClick={onSave}>
-          <Save className="h-4 w-4 mr-1" /> Save School Details
+      <div className="mt-4 flex gap-2">
+        <Button onClick={onAddStream}>Add Stream</Button>
+      </div>
+      <div className="mt-6 space-y-3">
+        {streams.length ? (
+          <div className="grid gap-2">
+            {streams.map((stream) => (
+              <div key={stream} className="flex items-center justify-between rounded-lg border p-3">
+                <div>
+                  <p className="font-medium">{stream}</p>
+                  <p className="text-xs text-muted-foreground">Attached to {selectedClass}</p>
+                </div>
+                <Button variant="outline" size="sm" onClick={() => onRemoveStream(selectedClass, stream)}>
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">No streams or branches configured for {selectedClass} yet.</p>
+        )}
+      </div>
+    </Card>
+  );
+}
+
+function AppearanceSection() {
+  const school = useStore(getSchool);
+  const [primaryColor, setPrimaryColor] = useState(school.primaryColor || "#3c64ff");
+  const [secondaryColor, setSecondaryColor] = useState(school.secondaryColor || "#eef2ff");
+  const [accentColor, setAccentColor] = useState(school.accentColor || "#f59e0b");
+  const [backgroundColor, setBackgroundColor] = useState(school.backgroundColor || "#f8fafc");
+  const [foregroundColor, setForegroundColor] = useState(school.foregroundColor || "#111111");
+  const [backgroundColorDark, setBackgroundColorDark] = useState(school.backgroundColorDark || "#0f172a");
+  const [foregroundColorDark, setForegroundColorDark] = useState(school.foregroundColorDark || "#f8fafc");
+
+  const [reportPageColor, setReportPageColor] = useState(school.reportCardPageColor || "#ffffff");
+  const [reportContentColor, setReportContentColor] = useState(school.reportCardContentColor || "#111111");
+  const [reportHeadingColor, setReportHeadingColor] = useState(school.reportCardHeadingColor || school.primaryColor || "#3c64ff");
+  const [reportPageColorAdv, setReportPageColorAdv] = useState(school.reportCardPageColorAdvanced || "#f8fafc");
+  const [reportContentColorAdv, setReportContentColorAdv] = useState(school.reportCardContentColorAdvanced || "#111111");
+  const [reportHeadingColorAdv, setReportHeadingColorAdv] = useState(school.reportCardHeadingColorAdvanced || "#dc2626");
+  const [watermarkColored, setWatermarkColored] = useState<boolean>(
+    school.reportCardWatermarkColored ?? true,
+  );
+
+  function saveAppearance() {
+    setSchool({
+      ...school,
+      primaryColor,
+      secondaryColor,
+      accentColor,
+      backgroundColor,
+      foregroundColor,
+      backgroundColorDark,
+      foregroundColorDark,
+      reportCardPageColor: reportPageColor,
+      reportCardContentColor: reportContentColor,
+      reportCardHeadingColor: reportHeadingColor,
+      reportCardPageColorAdvanced: reportPageColorAdv,
+      reportCardContentColorAdvanced: reportContentColorAdv,
+      reportCardHeadingColorAdvanced: reportHeadingColorAdv,
+      reportCardWatermarkColored: watermarkColored,
+    });
+    toast.success("Appearance settings saved.");
+  }
+
+  return (
+    <Card className="p-6">
+      <h2 className="font-semibold flex items-center gap-2 mb-4">
+        <Sliders className="h-4 w-4" /> Appearance (Colors)
+      </h2>
+      <p className="text-sm text-muted-foreground mb-4">
+        Color branding is editable here. Full school branding such as logo, name, and address remain managed in Light Distributor.
+      </p>
+      <div className="grid gap-4 xl:grid-cols-3">
+        <div className="rounded-lg border border-border bg-background shadow-sm">
+          <div className="border-b border-border px-4 py-3 font-semibold">Branding colors</div>
+          <div className="divide-y divide-border">
+            <div className="grid grid-cols-[1fr_auto] items-center gap-3 px-4 py-4">
+              <span>Primary Color</span>
+              <input id="primary-color" title="Primary Color" type="color" value={primaryColor} onChange={(e) => setPrimaryColor(e.target.value)} className="h-10 w-20" />
+            </div>
+            <div className="grid grid-cols-[1fr_auto] items-center gap-3 px-4 py-4">
+              <span>Secondary Color</span>
+              <input id="secondary-color" title="Secondary Color" type="color" value={secondaryColor} onChange={(e) => setSecondaryColor(e.target.value)} className="h-10 w-20" />
+            </div>
+            <div className="grid grid-cols-[1fr_auto] items-center gap-3 px-4 py-4">
+              <span>Accent Color</span>
+              <input id="accent-color" title="Accent Color" type="color" value={accentColor} onChange={(e) => setAccentColor(e.target.value)} className="h-10 w-20" />
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-lg border border-border bg-background shadow-sm">
+          <div className="border-b border-border px-4 py-3 font-semibold">System colors</div>
+          <div className="divide-y divide-border">
+            <div className="grid grid-cols-[1fr_auto] items-center gap-3 px-4 py-4">
+              <span>Background Color (Light)</span>
+              <input id="background-color" title="Background Color (Light Mode)" type="color" value={backgroundColor} onChange={(e) => setBackgroundColor(e.target.value)} className="h-10 w-20" />
+            </div>
+            <div className="grid grid-cols-[1fr_auto] items-center gap-3 px-4 py-4">
+              <span>Foreground Color (Light)</span>
+              <input id="foreground-color" title="Foreground Color (Light Mode)" type="color" value={foregroundColor} onChange={(e) => setForegroundColor(e.target.value)} className="h-10 w-20" />
+            </div>
+            <div className="grid grid-cols-[1fr_auto] items-center gap-3 px-4 py-4">
+              <span>Background Color (Dark)</span>
+              <input id="background-color-dark" title="Background Color (Dark Mode)" type="color" value={backgroundColorDark} onChange={(e) => setBackgroundColorDark(e.target.value)} className="h-10 w-20" />
+            </div>
+            <div className="grid grid-cols-[1fr_auto] items-center gap-3 px-4 py-4">
+              <span>Foreground Color (Dark)</span>
+              <input id="foreground-color-dark" title="Foreground Color (Dark Mode)" type="color" value={foregroundColorDark} onChange={(e) => setForegroundColorDark(e.target.value)} className="h-10 w-20" />
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-lg border border-border bg-background shadow-sm">
+          <div className="border-b border-border px-4 py-3 font-semibold">Report colors</div>
+          <div className="divide-y divide-border">
+            <div className="grid grid-cols-[1fr_auto] items-center gap-3 px-4 py-4">
+              <span>Report Page Color (Ordinary)</span>
+              <input id="report-page-color" title="Report Page Color (Ordinary)" type="color" value={reportPageColor} onChange={(e) => setReportPageColor(e.target.value)} className="h-10 w-20" />
+            </div>
+            <div className="grid grid-cols-[1fr_auto] items-center gap-3 px-4 py-4">
+              <span>Report Heading Color (Ordinary)</span>
+              <input id="report-heading-color" title="Report Heading Color (Ordinary)" type="color" value={reportHeadingColor} onChange={(e) => setReportHeadingColor(e.target.value)} className="h-10 w-20" />
+            </div>
+            <div className="grid grid-cols-[1fr_auto] items-center gap-3 px-4 py-4">
+              <span>Report Content Color (Ordinary)</span>
+              <input id="report-content-color" title="Report Content Color (Ordinary)" type="color" value={reportContentColor} onChange={(e) => setReportContentColor(e.target.value)} className="h-10 w-20" />
+            </div>
+            <div className="grid grid-cols-[1fr_auto] items-center gap-3 px-4 py-4">
+              <span>Report Page Color (Advanced)</span>
+              <input id="report-page-color-adv" title="Report Page Color (Advanced)" type="color" value={reportPageColorAdv} onChange={(e) => setReportPageColorAdv(e.target.value)} className="h-10 w-20" />
+            </div>
+            <div className="grid grid-cols-[1fr_auto] items-center gap-3 px-4 py-4">
+              <span>Report Heading Color (Advanced)</span>
+              <input id="report-heading-color-adv" title="Report Heading Color (Advanced)" type="color" value={reportHeadingColorAdv} onChange={(e) => setReportHeadingColorAdv(e.target.value)} className="h-10 w-20" />
+            </div>
+            <div className="grid grid-cols-[1fr_auto] items-center gap-3 px-4 py-4">
+              <span>Report Content Color (Advanced)</span>
+              <input id="report-content-color-adv" title="Report Content Color (Advanced)" type="color" value={reportContentColorAdv} onChange={(e) => setReportContentColorAdv(e.target.value)} className="h-10 w-20" />
+            </div>
+            <div className="px-4 py-4">
+              <div className="flex items-center gap-3">
+                <Switch checked={watermarkColored} onCheckedChange={(v) => setWatermarkColored(Boolean(v))} />
+                <div>
+                  <Label>Watermark Colored</Label>
+                  <p className="text-xs text-muted-foreground">When off, watermark will be grayscale on reports.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-6">
+        <Button onClick={saveAppearance} className="bg-primary/15 text-primary hover:bg-primary/20">
+          Save Colors
         </Button>
       </div>
     </Card>
@@ -1086,6 +1300,11 @@ function SecuritySection({
   recoveryPassword,
   setRecoveryPassword,
   onSave,
+  newCode,
+  setNewCode,
+  onChange,
+  auth,
+  navigate,
 }: {
   securityQuestion: string;
   setSecurityQuestion: (value: string) => void;
@@ -1096,51 +1315,62 @@ function SecuritySection({
   recoveryPassword: string;
   setRecoveryPassword: (value: string) => void;
   onSave: () => void;
+  newCode: string;
+  setNewCode: (code: string) => void;
+  onChange: () => void;
+  auth: any;
+  navigate: any;
 }) {
   return (
-    <Card className="p-6">
-      <h2 className="font-semibold flex items-center gap-2 mb-4">
-        <ShieldAlert className="h-4 w-4" /> Recovery & Security
-      </h2>
-      <div className="grid sm:grid-cols-2 gap-4">
-        <div className="sm:col-span-2">
-          <Label>Security Question</Label>
-          <Input
-            value={securityQuestion}
-            onChange={(e) => setSecurityQuestion(e.target.value)}
-            placeholder="e.g. LIGHT TECHNOLOGIES"
-          />
+    <div className="space-y-4">
+      <Card className="p-6">
+        <h2 className="font-semibold flex items-center gap-2 mb-4">
+          <ShieldAlert className="h-4 w-4" /> Recovery & Security
+        </h2>
+        <div className="grid sm:grid-cols-2 gap-4">
+          <div className="sm:col-span-2">
+            <Label>Security Question</Label>
+            <Input
+              value={securityQuestion}
+              onChange={(e) => setSecurityQuestion(e.target.value)}
+              placeholder="e.g. LIGHT TECHNOLOGIES"
+            />
+          </div>
+          <div className="sm:col-span-2">
+            <Label>Security Answer</Label>
+            <Input
+              type="password"
+              value={securityAnswer}
+              onChange={(e) => setSecurityAnswer(e.target.value)}
+              placeholder="Answer for recovery"
+            />
+          </div>
+          <div>
+            <Label>Recovery Email</Label>
+            <Input
+              type="email"
+              value={recoveryEmail}
+              onChange={(e) => setRecoveryEmail(e.target.value)}
+            />
+          </div>
+          <div>
+            <Label>Recovery Password</Label>
+            <Input
+              type="password"
+              value={recoveryPassword}
+              onChange={(e) => setRecoveryPassword(e.target.value)}
+            />
+          </div>
         </div>
-        <div className="sm:col-span-2">
-          <Label>Security Answer</Label>
-          <Input
-            type="password"
-            value={securityAnswer}
-            onChange={(e) => setSecurityAnswer(e.target.value)}
-            placeholder="Answer for recovery"
-          />
+        <div className="mt-5 flex justify-end">
+          <Button onClick={onSave}>Save Recovery Settings</Button>
         </div>
-        <div>
-          <Label>Recovery Email</Label>
-          <Input
-            type="email"
-            value={recoveryEmail}
-            onChange={(e) => setRecoveryEmail(e.target.value)}
-          />
-        </div>
-        <div>
-          <Label>Recovery Password</Label>
-          <Input
-            type="password"
-            value={recoveryPassword}
-            onChange={(e) => setRecoveryPassword(e.target.value)}
-          />
-        </div>
-      </div>
-      <div className="mt-5 flex justify-end">
-        <Button onClick={onSave}>Save Recovery Settings</Button>
-      </div>
-    </Card>
+      </Card>
+
+      <AccessCodeSection newCode={newCode} setNewCode={setNewCode} onChange={onChange} />
+
+      <DangerZoneSection auth={auth} navigate={navigate} />
+    </div>
   );
 }
 
@@ -1531,6 +1761,7 @@ function GradingScalesSection({
               value="individual"
               checked={selectedPaperMode === "individual"}
               onChange={(e) => setSelectedPaperMode(e.target.value as any)}
+              title="Individual Paper Grading"
             />
             <Label htmlFor="paper-individual">Individual Paper Grading</Label>
             <span className="text-xs text-muted-foreground">
@@ -1545,6 +1776,7 @@ function GradingScalesSection({
               value="pairs"
               checked={selectedPaperMode === "pairs"}
               onChange={(e) => setSelectedPaperMode(e.target.value as any)}
+              title="Paired Paper Grading"
             />
             <Label htmlFor="paper-pairs">Paired Paper Grading</Label>
             <span className="text-xs text-muted-foreground">
@@ -1559,6 +1791,7 @@ function GradingScalesSection({
               value="all"
               checked={selectedPaperMode === "all"}
               onChange={(e) => setSelectedPaperMode(e.target.value as any)}
+              title="All Papers Together"
             />
             <Label htmlFor="paper-all">All Papers Together</Label>
             <span className="text-xs text-muted-foreground">
@@ -1850,6 +2083,10 @@ function DangerZoneSection({
   auth: any;
   navigate: any;
 }) {
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showResetDialog, setShowResetDialog] = useState(false);
+  const currentPassword = auth.getInfo()?.accessCode ?? "";
+
   return (
     <Card className="p-6 border-destructive/40">
       <h2 className="font-semibold flex items-center gap-2 mb-2 text-destructive">
@@ -1859,7 +2096,10 @@ function DangerZoneSection({
         Factory reset wipes ALL data: students, marks, project work, school settings, and the
         access code. You'll be returned to first-time setup.
       </p>
-      <AlertDialog>
+      <AlertDialog open={showResetDialog} onOpenChange={(open) => {
+          if (!open) setConfirmPassword("");
+          setShowResetDialog(open);
+        }}>
         <AlertDialogTrigger asChild>
           <Button variant="destructive">Factory Reset</Button>
         </AlertDialogTrigger>
@@ -1870,10 +2110,24 @@ function DangerZoneSection({
               This permanently deletes all data on this device. This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
+          <div className="space-y-4 mt-4">
+            <Label htmlFor="reset-password">Admin Password</Label>
+            <Input
+              id="reset-password"
+              type="password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              placeholder="Enter admin password to confirm"
+            />
+          </div>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
+                if (confirmPassword !== currentPassword) {
+                  toast.error("Enter the correct admin password to confirm.");
+                  return;
+                }
                 factoryReset();
                 auth.signOut();
                 toast.success("System reset.");

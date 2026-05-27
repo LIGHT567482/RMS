@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>LIGHT DISTRIBUTOR</title>
+    <link rel="stylesheet" href="./style.css" />
+    <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+    <script src="branding-boot.js"></script>
+</head>
+  <body>
+    <div class="app-shell">
+      <header class="hero">
+        <div>
+          <p class="eyebrow">LIGHT DISTRIBUTOR</p>
+          <h1>Separate branding & packaging for RMS</h1>
+          <p class="description">
+            This dashboard is intentionally separate from the RMS app.
+            Use it to create a standalone branding package for school details, logos, and colors.
+          </p>
+        </div>
+      </header>
+
+      <main class="content">
+        <section class="panel">
+          <h2>School branding package</h2>
+          <p class="panel-copy">
+            Enter the school details and download a branded package file. This file can be used to generate a branded RMS distribution with the provided packaging script.
+          </p>
+
+          <div class="grid">
+            <label>
+              School name
+              <input id="schoolName" type="text" placeholder="Light High School" />
+            </label>
+            <label>
+              School motto
+              <input id="schoolMotto" type="text" placeholder="Light never mislead" />
+            </label>
+            <label>
+              Address
+              <input id="schoolAddress" type="text" placeholder="123 Learning Lane" />
+            </label>
+            <label>
+              Email
+              <input id="schoolEmail" type="email" placeholder="info@example.com" />
+            </label>
+            <label>
+              Phone number
+              <input id="schoolPhones" type="text" placeholder="+256 700 000 000" />
+            </label>
+            <label>
+              P.O. Box
+              <input id="schoolBox" type="text" placeholder="P.O. Box 1234" />
+            </label>
+            <label>
+              Primary color
+              <input id="primaryColor" type="color" value="#3c64ff" />
+            </label>
+            <label>
+              Secondary color
+              <input id="secondaryColor" type="color" value="#eef2ff" />
+            </label>
+            <label>
+              Accent color
+              <input id="accentColor" type="color" value="#f59e0b" />
+            </label>
+            <label>
+              School logo
+              <input id="logoUpload" type="file" accept="image/*" />
+            </label>
+            <label>
+              Sign-in Page Background Image
+              <input id="signInBackgroundUpload" type="file" accept="image/*" />
+            </label>
+          </div>
+
+          <div class="actions">
+            <button id="saveButton" type="button">Save branding locally</button>
+            <button id="downloadJsonButton" type="button">Download config JSON</button>
+            <button id="downloadPackageButton" type="button">Download ZIP package</button>
+          </div>
+
+          <div class="status" id="statusMessage">Configuration is stored locally in this browser when you click Save.</div>
+        </section>
+
+        <section class="panel preview-panel">
+          <h2>Preview</h2>
+          <div class="preview-card" id="previewCard">
+            <div class="preview-logo" id="previewLogo"></div>
+            <div class="preview-text">
+              <p class="label">School name</p>
+              <h3 id="previewName">Your School</h3>
+              <p id="previewMotto">Branding configured through Light Distributor.</p>
+            </div>
+          </div>
+
+          <div class="instructions">
+            <h3>Next step</h3>
+            <p>
+              After exporting your branding JSON, use the RMS packaging script from the repository root:
+            </p>
+            <pre>npm run package:branded -- light-distributor/branding.json</pre>
+            <p class="fine-print">
+              This creates a branded RMS distribution in <code>dist-branded/</code> and injects the configuration into the build.
+            </p>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

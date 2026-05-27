@@ -99,6 +99,14 @@ function Overview() {
             <p className="font-medium">Enter term marks</p>
             <p className="text-xs text-muted-foreground">CA (out of 20) + Exam (out of 80)</p>
           </Link>
+          <Link
+            to="/dashboard/continuous-assessment"
+            className="p-4 rounded-lg border bg-muted hover:border-primary hover:bg-accent/30 transition"
+          >
+            <Sparkles className="h-5 w-5 text-primary mb-2" />
+            <p className="font-medium">Continuous assessment</p>
+            <p className="text-xs text-muted-foreground">Enter CA activity marks per term</p>
+          </Link>
         </div>
       </Card>
     </div>

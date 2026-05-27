@@ -24,9 +24,12 @@ import {
   Sparkles,
   GraduationCap,
   AlertTriangle,
+  Moon,
+  Sun,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useStore, getSchool } from "@/lib/storage";
+import { useTheme } from "@/routes/__root";
 
 export const Route = createFileRoute("/dashboard")({
   component: DashboardLayout,
@@ -36,6 +39,7 @@ const NAV: { to: string; label: string; icon: any; exact?: boolean }[] = [
   { to: "/dashboard", label: "Overview", icon: LayoutDashboard, exact: true },
   { to: "/dashboard/marks", label: "Enter Marks", icon: ClipboardList },
   { to: "/dashboard/project-work", label: "Project Work", icon: Sparkles },
+  { to: "/dashboard/continuous-assessment", label: "Continuous Assessment", icon: GraduationCap },
   { to: "/dashboard/settings", label: "Settings", icon: Settings },
 ];
 
@@ -50,6 +54,8 @@ function DashboardLayout() {
   }, [auth.isAuthenticated, navigate]);
 
   if (!auth.isAuthenticated) return null;
+
+  const { theme, toggleTheme } = useTheme();
 
   return (
     <SidebarProvider>
@@ -131,7 +137,19 @@ function DashboardLayout() {
               <AlertTriangle className="h-4 w-4 text-destructive" />
               FOR STAFF USE ONLY
             </div>
-            <div className="ml-auto text-xs text-muted-foreground">{school.motto}</div>
+            <div className="ml-auto flex items-center gap-3 text-xs text-muted-foreground">
+              <span>{school.motto}</span>
+              <Button
+                size="icon"
+                variant="ghost"
+                type="button"
+                aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+                onClick={toggleTheme}
+                className="bg-card text-card-foreground shadow-lg border border-border hover:opacity-90"
+              >
+                {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+              </Button>
+            </div>
           </header>
 
           <main className="flex-1 p-6 overflow-auto">

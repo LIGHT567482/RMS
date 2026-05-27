@@ -144,8 +144,8 @@
 @media print {
   body { background: white; }
   .no-print { display: none !important; }
-  .print-area { box-shadow: none !important; margin: 15mm auto !important; padding: 15mm !important; max-width: calc(210mm - 30mm) !important; min-height: calc(297mm - 30mm) !important; display: block !important; }
-  @page { size: A4; margin: 15mm; }
+  .print-area { box-shadow: none !important; margin: 10mm auto !important; padding: 10mm !important; max-width: calc(210mm - 20mm) !important; min-height: calc(297mm - 20mm) !important; display: block !important; }
+  @page { size: A4; margin: 10mm; }
 
   /* Report card print styles */
   .print-area table { page-break-inside: avoid !important; border-collapse: collapse !important; }

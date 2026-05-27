@@ -70,16 +70,50 @@ interface ImportRow {
   registrationNumber: string;
   gender?: Gender;
   classLevel?: ClassLevel;
+  stream?: string;
   rawSubjects: string;
   subjects: string;
   selected: boolean;
   errors: string[];
 }
 
+function normalizeSubjectName(raw: string): string {
+  const normalized = String(raw).trim();
+  const key = normalized.toLowerCase().replace(/\s+/g, "");
+  const aliasMap: Record<string, string> = {
+    english: "English",
+    mathematics: "Mathematics",
+    maths: "Mathematics",
+    computer: "Computer",
+    cre: "CRE",
+    ire: "IRE",
+    fineart: "FineArt",
+    "fine art": "FineArt",
+    geography: "Geography",
+    history: "History",
+    biology: "Biology",
+    chemistry: "Chemistry",
+    physics: "Physics",
+    entrepreneurship: "Entrepreneurship",
+    luganda: "Luganda",
+    technicaldrawing: "TechnicalDrawing",
+    "technical drawing": "TechnicalDrawing",
+    generalpaper: "GeneralPaper",
+    "general paper": "GeneralPaper",
+    subsidiaryict: "SubsidiaryICT",
+    "subsidiary ict": "SubsidiaryICT",
+    subsidiarymath: "SubsidiaryMath",
+    "subsidiary math": "SubsidiaryMath",
+    subsiduaryict: "SubsidiaryICT",
+    subsiduarymath: "SubsidiaryMath",
+  };
+  return aliasMap[key] ?? normalized;
+}
+
 function parseSubjects(value: string | undefined): string[] {
   return String(value || "")
     .split(/[,;]+/)
-    .map((subject) => subject.trim())
+    .map((subject) => normalizeSubjectName(subject))
     .filter(Boolean);
 }
 
@@ -177,6 +211,17 @@ function generateStudentIdentificationNumber(prefix: string) {
     token += tokenChars.charAt(Math.floor(Math.random() * tokenChars.length));
   }
   return `${safePrefix || "SIN"}-${token}`;
+}
+
+// Use a safe id generator that falls back when crypto.randomUUID is unavailable
+function generateId() {
+  try {
+    // @ts-ignore - some environments may not have crypto.randomUUID
+    if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") return crypto.randomUUID();
+  } catch (e) {
+    // ignore
+  }
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
 function getStudentCombo(student: Student, combinations: Combination[]) {
@@ -328,7 +373,7 @@ function StudentsPage() {
   const subjectsHeader = hasAdvancedStudents && !hasOrdinaryStudents ? "Combination" : "Subjects";
 
   const filtersApplied =
-    (searchQuery.trim() !== "") ||
+    searchQuery.trim() !== "" ||
     classFilter !== "All" ||
     levelFilter !== "All" ||
     genderFilter !== "All" ||
@@ -386,12 +431,15 @@ function StudentsPage() {
       bookType === "csv"
         ? "text/csv;charset=utf-8;"
         : bookType === "html"
-        ? "text/html;charset=utf-8;"
-        : "application/octet-stream";
+          ? "text/html;charset=utf-8;"
+          : "application/octet-stream";
 
-    const blob = new Blob([bookType === "csv" || bookType === "html" ? data : new Uint8Array(data as ArrayBuffer)], {
-      type: mimeType,
-    });
+    const blob = new Blob(
+      [bookType === "csv" || bookType === "html" ? data : new Uint8Array(data as ArrayBuffer)],
+      {
+        type: mimeType,
+      },
+    );
 
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
@@ -426,6 +474,9 @@ function StudentsPage() {
       const parsedRows = rows.map((row, index) => {
         const rowClassRaw = String(row["Class"] || row["class"] || "").trim();
         const normalizedClass = normalizeClassInput(rowClassRaw);
+        const streamRaw = String(
+          row["Stream"] || row["Branch"] || row["stream"] || row["branch"] || "",
+        ).trim();
         const rawSubjects = String(
           row["Subjects"] ||
             row["subjects"] ||
@@ -453,6 +504,7 @@ function StudentsPage() {
             .replace(/\D/g, ""),
           gender,
           classLevel: normalizedClass,
+          stream: streamRaw || undefined,
           rawSubjects,
           subjects: formatImportedSubjectValue(normalizedClass, rawSubjects),
           selected: true,
@@ -503,6 +555,7 @@ function StudentsPage() {
         studentIdentificationNumber,
         registrationNumber: registrationNumberValue,
         classLevel,
+        stream: row.stream,
         gender: row.gender,
         optionalSubjects: isAdvanced
           ? undefined
@@ -522,8 +575,8 @@ function StudentsPage() {
       if (existing) {
         updateStudent(existing.id, studentData);
       } else {
-        addStudent({
-          id: crypto.randomUUID(),
+          addStudent({
+            id: generateId(),
           ...studentData,
           createdAt: Date.now(),
         });
@@ -551,7 +604,9 @@ function StudentsPage() {
       <div className="flex items-end justify-between gap-4 flex-wrap">
         <div>
           <h1 className="font-display text-3xl">Students</h1>
-          <p className="text-muted-foreground">Enroll, edit, and manage student records. ({filtered.length})</p>
+          <p className="text-muted-foreground">
+            Enroll, edit, and manage student records. ({filtered.length})
+          </p>
         </div>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
@@ -561,6 +616,7 @@ function StudentsPage() {
           </DialogTrigger>
           <StudentDialog
             student={editing}
+            open={open}
             onClose={() => {
               setOpen(false);
               setEditing(null);
@@ -594,7 +650,10 @@ function StudentsPage() {
 
             <div>
               <Label className="text-xs mb-2 block">Export Format</Label>
-              <Select value={exportFormat} onValueChange={(v) => setExportFormat(v as ExportFormat)}>
+              <Select
+                value={exportFormat}
+                onValueChange={(v) => setExportFormat(v as ExportFormat)}
+              >
                 <SelectTrigger className="h-8 text-sm">
                   <SelectValue />
                 </SelectTrigger>
@@ -615,7 +674,10 @@ function StudentsPage() {
 
             <div>
               <Label className="text-xs mb-2 block">Class</Label>
-              <Select value={classFilter} onValueChange={(v) => setClassFilter(v as "All" | ClassLevel)}>
+              <Select
+                value={classFilter}
+                onValueChange={(v) => setClassFilter(v as "All" | ClassLevel)}
+              >
                 <SelectTrigger className="h-8 text-sm">
                   <SelectValue />
                 </SelectTrigger>
@@ -650,7 +712,10 @@ function StudentsPage() {
 
             <div>
               <Label className="text-xs mb-2 block">Gender</Label>
-              <Select value={genderFilter} onValueChange={(v) => setGenderFilter(v as "All" | Gender)}>
+              <Select
+                value={genderFilter}
+                onValueChange={(v) => setGenderFilter(v as "All" | Gender)}
+              >
                 <SelectTrigger className="h-8 text-sm">
                   <SelectValue />
                 </SelectTrigger>
@@ -710,7 +775,12 @@ function StudentsPage() {
                 Gender, Class, Subjects.
               </p>
               <div className="mt-3">
-                <Button variant="outline" size="sm" onClick={applyImport} disabled={!importRows.length}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={applyImport}
+                  disabled={!importRows.length}
+                >
                   <Upload className="h-4 w-4 mr-1" /> Apply imported rows
                 </Button>
               </div>
@@ -739,26 +809,28 @@ function StudentsPage() {
 
         <div className="space-y-6">
           {importRows.length > 0 && (
-            <Card className="overflow-x-auto">
+            <Card className="overflow-x-auto bg-card text-card-foreground">
               <div className="p-4 border-b flex items-center justify-between gap-3 flex-wrap">
                 <div>
                   <p className="font-semibold">Import preview</p>
-                  <p className="text-sm text-muted-foreground">Confirm or uncheck any rows before importing.</p>
+                  <p className="text-sm text-muted-foreground">
+                    Confirm or uncheck any rows before importing.
+                  </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <Button variant="outline" size="sm" onClick={() => setImportRows([])}>
                     Cancel preview
                   </Button>
-                  <Button size="sm" onClick={applyImport}>
+                  <Button size="sm" onClick={applyImport} disabled={!importRows.length}>
                     Apply selected rows
                   </Button>
                 </div>
               </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="bg-secondary text-secondary-foreground">
-                    <tr>
-                      <th className="p-3 text-left">Import</th>
+              <div className="overflow-x-auto bg-card">
+                <table className="w-full text-sm bg-card">
+                  <thead className="bg-card text-secondary-foreground">
+                    <tr className="bg-card">
+                      <th className="p-3 text-left bg-card">Import</th>
                       <th className="p-3 text-left">Name</th>
                       <th className="p-3 text-left">Student ID</th>
                       <th className="p-3 text-left">Registration</th>
@@ -772,7 +844,10 @@ function StudentsPage() {
                     {importRows.map((row) => (
                       <tr key={row.id} className="border-t hover:bg-accent/10">
                         <td className="p-3">
-                          <Checkbox checked={row.selected} onCheckedChange={() => toggleImportRow(row.id)} />
+                          <Checkbox
+                            checked={row.selected}
+                            onCheckedChange={() => toggleImportRow(row.id)}
+                          />
                         </td>
                         <td className="p-3">{row.name}</td>
                         <td className="p-3">{row.studentIdentificationNumber || "-"}</td>
@@ -780,7 +855,9 @@ function StudentsPage() {
                         <td className="p-3">{row.gender ?? "-"}</td>
                         <td className="p-3">{row.classLevel ?? "-"}</td>
                         <td className="p-3">{row.subjects}</td>
-                        <td className="p-3 text-xs text-muted-foreground">{row.errors.length > 0 ? row.errors.join(" ") : "Ready"}</td>
+                        <td className="p-3 text-xs text-muted-foreground">
+                          {row.errors.length > 0 ? row.errors.join(" ") : "Ready"}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -820,7 +897,9 @@ function StudentsPage() {
                       <td className="p-3">
                         <div>{s.studentIdentificationNumber ?? "-"}</div>
                         {s.registrationNumber ? (
-                          <div className="text-muted-foreground text-xs">Reg: {s.registrationNumber}</div>
+                          <div className="text-muted-foreground text-xs">
+                            Reg: {s.registrationNumber}
+                          </div>
                         ) : null}
                       </td>
                       <td className="p-3">{s.gender ?? "-"}</td>
@@ -852,8 +931,8 @@ function StudentsPage() {
                               <AlertDialogHeader>
                                 <AlertDialogTitle>Delete {s.name}?</AlertDialogTitle>
                                 <AlertDialogDescription>
-                                  This permanently removes the student and all their marks and project
-                                  records.
+                                  This permanently removes the student and all their marks and
+                                  project records.
                                 </AlertDialogDescription>
                               </AlertDialogHeader>
                               <AlertDialogFooter>
@@ -879,7 +958,8 @@ function StudentsPage() {
           )}
 
           <p className="text-xs text-muted-foreground text-center">
-            {Array.from(new Set(subjects.map((subject) => subject.name.toLowerCase()))).length} unique subjects in catalog
+            {Array.from(new Set(subjects.map((subject) => subject.name.toLowerCase()))).length}{" "}
+            unique subjects in catalog
           </p>
         </div>
       </div>
@@ -887,7 +967,7 @@ function StudentsPage() {
   );
 }
 
-function StudentDialog({ student, onClose }: { student: Student | null; onClose: () => void }) {
+function StudentDialog({ student, open, onClose }: { student: Student | null; open: boolean; onClose: () => void }) {
   const subjects = useStore(getSubjects);
   const school = useStore(getSchool);
   const [name, setName] = useState(student?.name ?? "");
@@ -899,6 +979,7 @@ function StudentDialog({ student, onClose }: { student: Student | null; onClose:
     : "";
   const [level, setLevel] = useState<"Ordinary" | "Advanced" | "">(initialLevel);
   const [classLevel, setClassLevel] = useState<ClassLevel | "">(student?.classLevel ?? "");
+  const [stream, setStream] = useState<string | "">(student?.stream ?? "");
   const [gender, setGender] = useState<Gender | "unspecified">(student?.gender ?? "unspecified");
   const [photo, setPhoto] = useState(student?.photoDataUrl);
   const [optionals, setOptionals] = useState<string[]>(student?.optionalSubjects ?? []);
@@ -911,28 +992,39 @@ function StudentDialog({ student, onClose }: { student: Student | null; onClose:
       : [],
   );
 
-  useEffect(() => {
-    setName(student?.name ?? "");
-    setRegistrationNumber(student?.registrationNumber ?? "");
-    setGender(student?.gender ?? "unspecified");
-    setClassLevel(student?.classLevel ?? "");
+  function resetFormState(studentParam: Student | null) {
+    setName(studentParam?.name ?? "");
+    setRegistrationNumber(studentParam?.registrationNumber ?? "");
+    setGender(studentParam?.gender ?? "unspecified");
+    setClassLevel(studentParam?.classLevel ?? "");
     setLevel(
-      student?.classLevel
-        ? ORDINARY_LEVELS.includes(student.classLevel)
+      studentParam?.classLevel
+        ? ORDINARY_LEVELS.includes(studentParam.classLevel)
           ? "Ordinary"
           : "Advanced"
         : "",
     );
-    setPhoto(student?.photoDataUrl);
-    setOptionals(student?.optionalSubjects ?? []);
+    setPhoto(studentParam?.photoDataUrl);
+    setOptionals(studentParam?.optionalSubjects ?? []);
+    setStream(studentParam?.stream ?? "");
     setSelectedAdvancedSubjects(
-      student && ADVANCED_LEVELS.includes(student.classLevel as ClassLevel)
-        ? (student.enrolledSubjects?.filter(
+      studentParam && ADVANCED_LEVELS.includes(studentParam.classLevel as ClassLevel)
+        ? (studentParam.enrolledSubjects?.filter(
             (s) => !["GeneralPaper", "SubsidiaryICT", "SubsidiaryMath"].includes(s),
           ) ?? [])
         : [],
     );
+  }
+
+  useEffect(() => {
+    resetFormState(student);
   }, [student]);
+
+  useEffect(() => {
+    if (!open) {
+      resetFormState(student);
+    }
+  }, [open, student]);
 
   const isOrdinary = classLevel !== "" && ORDINARY_LEVELS.includes(classLevel as ClassLevel);
   const isAdvanced = classLevel !== "" && ADVANCED_LEVELS.includes(classLevel as ClassLevel);
@@ -944,7 +1036,12 @@ function StudentDialog({ student, onClose }: { student: Student | null; onClose:
     if (!canHaveRegistrationNumber) {
       setRegistrationNumber("");
     }
-  }, [canHaveRegistrationNumber]);
+    // reset stream if class no longer has it
+    const streamsForClass = school.classStreams?.[classLevel as ClassLevel] ?? [];
+    if (stream && !streamsForClass.includes(stream)) setStream("");
+  }, [canHaveRegistrationNumber, classLevel, school.classStreams, stream]);
+
+  const streams = classLevel ? (school.classStreams?.[classLevel as ClassLevel] ?? []) : [];
 
   // Calculate the full enrollment for advanced students
   const advancedEnrollment = useMemo(() => {
@@ -984,9 +1081,9 @@ function StudentDialog({ student, onClose }: { student: Student | null; onClose:
   }
 
   function save() {
+    console.debug("StudentDialog.save invoked", { student, name, classLevel, level, optionals, selectedAdvancedSubjects });
     if (!name.trim()) return toast.error("Name is required.");
-    if (!level) return toast.error("Choose a level first.");
-    if (!classLevel) return toast.error("Choose a class for the selected level.");
+    if (!classLevel) return toast.error("Choose a class first.");
     if (showOptionalSubjects && optionals.length !== 2)
       return toast.error("Pick exactly 2 optional subjects for S.2–S.4.");
     if (showAdvancedSubjects && !advancedEnrollment)
@@ -1016,6 +1113,7 @@ function StudentDialog({ student, onClose }: { student: Student | null; onClose:
         name: name.trim(),
         registrationNumber: registrationNumberValue,
         classLevel,
+        stream: stream || undefined,
         gender: genderValue,
         photoDataUrl: photo,
         optionalSubjects: showOptionalSubjects ? optionals : undefined,
@@ -1028,13 +1126,14 @@ function StudentDialog({ student, onClose }: { student: Student | null; onClose:
       toast.success("Student updated.");
     } else {
       addStudent({
-        id: crypto.randomUUID(),
+        id: generateId(),
         name: name.trim(),
         studentIdentificationNumber: generateStudentIdentificationNumber(
           school.studentIdentificationPrefix ?? "SIN",
         ),
         registrationNumber: registrationNumberValue,
         classLevel,
+        stream: stream || undefined,
         gender: genderValue,
         photoDataUrl: photo,
         optionalSubjects: showOptionalSubjects ? optionals : undefined,
@@ -1049,7 +1148,7 @@ function StudentDialog({ student, onClose }: { student: Student | null; onClose:
     if (isOrdinary && optionals.length > 0) {
       optionals.forEach((subjectName) => {
         addOrdinarySubject({
-          id: crypto.randomUUID(),
+          id: generateId(),
           name: subjectName,
           isOptional: true,
         });
@@ -1064,14 +1163,7 @@ function StudentDialog({ student, onClose }: { student: Student | null; onClose:
       <DialogHeader>
         <DialogTitle>{student ? "Edit Student" : "New Student"}</DialogTitle>
       </DialogHeader>
-      <form
-        id="student-form"
-        onSubmit={(e) => {
-          e.preventDefault();
-          save();
-        }}
-        className="space-y-4"
-      >
+      <form className="space-y-4">
         <div className="flex items-center gap-4">
           {photo ? (
             <img src={photo} alt="" className="h-20 w-20 rounded-full object-cover border" />
@@ -1131,6 +1223,25 @@ function StudentDialog({ student, onClose }: { student: Student | null; onClose:
             </Select>
           </div>
         </div>
+
+        {classLevel && (school.classStreams?.[classLevel as ClassLevel] ?? []).length > 0 && (
+          <div>
+            <Label>Stream / Branch</Label>
+            <Select value={stream} onValueChange={(v) => setStream(v as string)}>
+              <SelectTrigger>
+                <SelectValue placeholder="Choose stream" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">None</SelectItem>
+                {(school.classStreams?.[classLevel as ClassLevel] ?? []).map((b) => (
+                  <SelectItem key={b} value={b}>
+                    {b}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
 
         <div className="mt-4">
           <Label>Gender</Label>
@@ -1219,7 +1330,7 @@ function StudentDialog({ student, onClose }: { student: Student | null; onClose:
           <Button type="button" variant="outline" onClick={onClose}>
             Cancel
           </Button>
-          <Button type="submit">
+          <Button type="button" variant="default" className="min-w-[96px]" onClick={save}>
             <Save className="h-4 w-4 mr-1" /> Save
           </Button>
         </DialogFooter>

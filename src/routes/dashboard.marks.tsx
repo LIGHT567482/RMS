@@ -10,13 +10,14 @@ import {
   upsertMark,
   getOrdinarySubjects,
   getAdvancedSubjects,
+  getSchool,
 } from "@/lib/storage";
 import {
   ADVANCED_LEVELS,
   ALL_TERMS,
   ORDINARY_LEVELS,
   displaySubjectName,
-  EXAM_SETS,
+  DEFAULT_EXAM_SETS,
   subjectsForStudent,
   type ClassLevel,
   type ExamSet,
@@ -46,6 +47,7 @@ interface ImportMarkRow {
   name: string;
   registrationNumber: string;
   score: string;
+  examSet?: ExamSet;
   selected: boolean;
   errors: string[];
 }
@@ -55,15 +57,45 @@ function MarksPage() {
   const ordinarySubjects = useStore(getOrdinarySubjects);
   const advancedSubjects = useStore(getAdvancedSubjects);
   const marks = useStore(getMarks);
+  const school = useStore(getSchool);
+  const ordinaryExamSets =
+    school.selectedExamSetsOrdinary && school.selectedExamSetsOrdinary.length > 0
+      ? school.selectedExamSetsOrdinary
+      : school.selectedExamSets && school.selectedExamSets.length > 0
+      ? school.selectedExamSets
+      : DEFAULT_EXAM_SETS;
+  const advancedExamSets =
+    school.selectedExamSetsAdvanced && school.selectedExamSetsAdvanced.length > 0
+      ? school.selectedExamSetsAdvanced
+      : school.selectedExamSets && school.selectedExamSets.length > 0
+      ? school.selectedExamSets
+      : DEFAULT_EXAM_SETS;
+  const allExamSets = Array.from(new Set([...ordinaryExamSets, ...advancedExamSets]));
 
   const [levelGroup, setLevelGroup] = useState<"all" | "ordinary" | "advanced">("all");
   const [classLevel, setClassLevel] = useState<ClassLevel | "all">("all");
   const [term, setTerm] = useState<Term | "">("" as any);
+
+  const classSpecificExamSets =
+    classLevel === "all"
+      ? undefined
+      : ADVANCED_LEVELS.includes(classLevel as ClassLevel)
+      ? advancedExamSets
+      : ordinaryExamSets;
+  const examSets =
+    levelGroup === "ordinary"
+      ? ordinaryExamSets
+      : levelGroup === "advanced"
+      ? advancedExamSets
+      : classSpecificExamSets ?? allExamSets;
+
   const [subjectName, setSubjectName] = useState<string>("");
   const [paperNumber, setPaperNumber] = useState<number | "all">("all");
   const [examSet, setExamSet] = useState<ExamSet | "all">("all");
+  const [stream, setStream] = useState<string | "all">("all");
   const [draft, setDraft] = useState<Record<string, string>>({});
   const [importRows, setImportRows] = useState<ImportMarkRow[]>([]);
+  const [importExamSets, setImportExamSets] = useState<ExamSet[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [exportFormat, setExportFormat] = useState<"xlsx" | "csv" | "ods">("xlsx");
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -105,14 +137,27 @@ function MarksPage() {
     [ordinarySubjects, advancedSubjects],
   );
 
+
   const filtersApplied =
     subjectName !== "" && paperNumber !== "all";
+
+  const classStreams = classLevel !== "all" ? school.classStreams?.[classLevel as ClassLevel] ?? [] : [];
 
   useEffect(() => {
     if (classLevel !== "all" && !availableClassLevels.includes(classLevel as ClassLevel)) {
       setClassLevel("all");
     }
   }, [availableClassLevels, classLevel]);
+
+  useEffect(() => {
+    if (classLevel === "all") {
+      setStream("all");
+      return;
+    }
+    if (stream !== "all" && !classStreams.includes(stream)) {
+      setStream("all");
+    }
+  }, [classLevel, classStreams, stream]);
 
   useEffect(() => {
     if (subjectName && !availableSubjects.some((s) => s.name === subjectName)) {
@@ -130,11 +175,18 @@ function MarksPage() {
 
   useEffect(() => {
     setImportContextSet(false);
-  }, [classLevel, subjectName, term, examSet, levelGroup]);
+  }, [classLevel, subjectName, term, examSet, stream, importExamSets, levelGroup]);
 
   const studentsInClass = useMemo(
-    () => (classLevel === "all" ? students : students.filter((s) => s.classLevel === classLevel as ClassLevel)),
-    [students, classLevel],
+    () =>
+      classLevel === "all"
+        ? students
+        : students.filter(
+            (s) =>
+              s.classLevel === (classLevel as ClassLevel) &&
+              (stream === "all" || s.stream === stream),
+          ),
+    [students, classLevel, stream],
   );
 
   const filteredStudents = useMemo(() => {
@@ -189,23 +241,9 @@ function MarksPage() {
       });
       count++;
     }
-    setDraft({});
-    toast.success(`Saved ${count} paper mark${count === 1 ? "" : "s"}.`);
-  }
 
-  const downloadMarksWorkbook = (format: "xlsx" | "csv" | "ods" = "xlsx") => {
-    if (!subjectName) return toast.error("Select a subject first.");
-    if (!term) return toast.error("Select term first.");
-    if (paperNumber === "all") return toast.error("Select a paper first.");
-    if (examSet === "all") return toast.error("Select an exam set first.");
-    const rows = studentsInClass
-      .filter((s) => subjectsForStudent(s, allSubjects).some((sub) => sub.name === subjectName))
-      .map((student) => ({
-        Name: student.name,
-        "Registration Number": student.registrationNumber ?? "",
-        "Exam Set": examSet,
-        "Score (0-100)": value(student.id),
-      }));
+    setDraft({});
+    toast.success(`${count} mark${count === 1 ? "" : "s"} saved.`);
 
     if (!rows.length) {
       toast.error("No eligible students to export.");
@@ -259,6 +297,8 @@ function MarksPage() {
     if (!row.score.trim()) errors.push("Score is required.");
     if (!isValidMarkValue(row.score || ""))
       errors.push("Score must be 0–100 with up to one decimal place.");
+    if (row.examSet === undefined && importExamSets.length === 0)
+      errors.push("Select at least one exam set or include an Exam Set column in the file.");
     return errors;
   };
 
@@ -277,6 +317,15 @@ function MarksPage() {
       const rows = XLSX.utils.sheet_to_json<Record<string, string>>(sheet, { defval: "" });
 
       const parsedRows = rows.map((row, index) => {
+        const rawExamSet = String(
+          row["Exam Set"] || row["examSet"] || row["exam set"] || row["exam"] || "",
+        )
+          .trim()
+          .toUpperCase();
+        const examSetValue = examSets.includes(rawExamSet as ExamSet)
+          ? (rawExamSet as ExamSet)
+          : undefined;
+
         const importRow: ImportMarkRow = {
           id: `row-${index}`,
           name: String(row["Name"] || row["name"] || "").trim(),
@@ -287,6 +336,7 @@ function MarksPage() {
               "",
           ).trim(),
           score: String(row["Score (0-100)"] || row["score"] || row["Score"] || "").trim(),
+          examSet: examSetValue,
           selected: true,
           errors: [],
         };
@@ -337,16 +387,24 @@ function MarksPage() {
       }
 
       const score = normalizeMarkValue(row.score || "0");
-      upsertMark({
-        id: `${student.id}:${term}:${subjectName}:${paperNumber}:${examSet}`,
-        studentId: student.id,
-        term,
-        subject: subjectName,
-        paper: paperNumber,
-        examSet,
-        score,
-      });
-      count++;
+      const targetSets = row.examSet ? [row.examSet] : importExamSets;
+      if (targetSets.length === 0) {
+        toast.error(`No exam set selected for row ${row.name}.`);
+        continue;
+      }
+
+      for (const targetSet of targetSets) {
+        upsertMark({
+          id: `${student.id}:${term}:${subjectName}:${paperNumber}:${targetSet}`,
+          studentId: student.id,
+          term,
+          subject: subjectName,
+          paper: paperNumber,
+          examSet: targetSet,
+          score,
+        });
+        count++;
+      }
     }
 
     setImportRows([]);
@@ -415,6 +473,31 @@ function MarksPage() {
               </Select>
             </div>
             <div>
+              <Label>Stream</Label>
+              <Select
+                value={stream}
+                onValueChange={(v) => setStream(v as string | "all")}
+                disabled={classLevel === "all" || classStreams.length === 0}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="All streams" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All streams</SelectItem>
+                  {classStreams.map((branch) => (
+                    <SelectItem key={branch} value={branch}>
+                      {branch}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {classLevel !== "all" && classStreams.length > 0 ? (
+                <p className="text-xs text-muted-foreground mt-2">
+                  Pick a stream to filter students to that branch, or leave as All streams to show everyone in the class.
+                </p>
+              ) : null}
+            </div>
+            <div>
               <Label>Subject</Label>
               <Select value={subjectName} onValueChange={setSubjectName}>
                 <SelectTrigger>
@@ -469,13 +552,35 @@ function MarksPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All exam sets</SelectItem>
-                  {EXAM_SETS.map((set) => (
+                  {examSets.map((set) => (
                     <SelectItem key={set} value={set}>
                       {set}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+              <div className="mt-2">
+                <Label className="text-xs">Import To Exam Sets</Label>
+                <div className="flex gap-2 mt-2">
+                  {examSets.map((s) => {
+                    const checked = importExamSets.includes(s);
+                    return (
+                      <label key={s} className="inline-flex items-center gap-2 rounded border px-2 py-1 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={(e) => {
+                            if (e.target.checked) setImportExamSets((cur) => Array.from(new Set([...cur, s])));
+                            else setImportExamSets((cur) => cur.filter((x) => x !== s));
+                          }}
+                        />
+                        <span>{s}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+                <p className="text-xs text-muted-foreground mt-2">When selected, imported rows without an Exam Set column will be written to these sets. Rows with an Exam Set column use that value.</p>
+              </div>
             </div>
             <div>
               <Label htmlFor="search-marks" className="text-sm">
@@ -566,7 +671,7 @@ function MarksPage() {
 
         <div className="space-y-6">
           {importRows.length > 0 && (
-            <Card className="overflow-x-auto">
+            <Card className="overflow-x-auto bg-card text-card-foreground">
               <div className="p-4 border-b flex items-center justify-between gap-3 flex-wrap">
                 <div>
                   <p className="font-semibold">Import preview</p>
@@ -578,16 +683,16 @@ function MarksPage() {
                   <Button variant="outline" size="sm" onClick={() => setImportRows([])}>
                     Cancel preview
                   </Button>
-                  <Button size="sm" onClick={applyImport}>
+                  <Button size="sm" onClick={applyImport} disabled={!importRows.length}>
                     Apply selected rows
                   </Button>
                 </div>
               </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="bg-secondary text-secondary-foreground">
-                    <tr>
-                      <th className="p-3 text-left">Import</th>
+              <div className="overflow-x-auto bg-card">
+                <table className="w-full text-sm bg-card">
+                  <thead className="bg-card text-secondary-foreground">
+                    <tr className="bg-card">
+                      <th className="p-3 text-left bg-card">Import</th>
                       <th className="p-3 text-left">Name</th>
                       <th className="p-3 text-left">Registration</th>
                       <th className="p-3 text-left">Score</th>

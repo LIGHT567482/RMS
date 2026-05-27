@@ -15,10 +15,11 @@ import {
   getOrdinarySubjects,
   getAdvancedSubjects,
 } from "@/lib/storage";
+import { unebGrade, A_LEVEL_SCALE, O_LEVEL_SCALE } from "@/lib/unebGrading";
 import {
   ALL_TERMS,
   displaySubjectName,
-  EXAM_SETS,
+  DEFAULT_EXAM_SETS,
   gradeFor,
   isAdvancedLevel,
   subjectsForStudent,
@@ -92,11 +93,27 @@ function ReportsPage() {
     () => [...ordinarySubjects, ...advancedSubjects],
     [ordinarySubjects, advancedSubjects],
   );
-  const selectedExamSets: ExamSet[] =
-    school.selectedExamSets && school.selectedExamSets.length > 0
+  const ordinaryExamSets: ExamSet[] =
+    school.reportCardExamSetsOrdinary && school.reportCardExamSetsOrdinary.length > 0
+      ? school.reportCardExamSetsOrdinary
+      : school.selectedExamSetsOrdinary && school.selectedExamSetsOrdinary.length > 0
+      ? school.selectedExamSetsOrdinary
+      : school.selectedExamSets && school.selectedExamSets.length > 0
       ? school.selectedExamSets
-      : ["EOT"];
+      : DEFAULT_EXAM_SETS;
+  const advancedExamSets: ExamSet[] =
+    school.reportCardExamSetsAdvanced && school.reportCardExamSetsAdvanced.length > 0
+      ? school.reportCardExamSetsAdvanced
+      : school.selectedExamSetsAdvanced && school.selectedExamSetsAdvanced.length > 0
+      ? school.selectedExamSetsAdvanced
+      : school.selectedExamSets && school.selectedExamSets.length > 0
+      ? school.selectedExamSets
+      : DEFAULT_EXAM_SETS;
+  const allExamSets = Array.from(new Set([...ordinaryExamSets, ...advancedExamSets]));
+  const getExamSetsForStudent = (student: Student) =>
+    isAdvancedLevel(student.classLevel) ? advancedExamSets : ordinaryExamSets;
   const examSetLabels: Record<ExamSet, string> = { BOT: "B.O.T", MOT: "M.O.T", EOT: "E.O.T" };
+  const getMaxMarks = (set: string) => school.examSetWeights?.[set] ?? 100;
 
   const [classLevel, setClassLevel] = useState<string>("all");
   const [selectedStudents, setSelectedStudents] = useState<string[]>([]);
@@ -271,11 +288,14 @@ function ReportsPage() {
         document.body.removeChild(wrapper);
 
         const imgData = canvas.toDataURL("image/png");
-        const fitScale = Math.min(pdfWidth / canvas.width, pdfHeight / canvas.height);
+        const marginMm = 10; // 1cm margin on all sides
+        const contentWidth = pdfWidth - marginMm * 2;
+        const contentHeight = pdfHeight - marginMm * 2;
+        const fitScale = Math.min(contentWidth / canvas.width, contentHeight / canvas.height);
         const imgWidth = canvas.width * fitScale * 2;
         const imgHeight = canvas.height * fitScale * 2;
-        const xOffset = (pdfWidth - imgWidth) / 2;
-        const yOffset = (pdfHeight - imgHeight) / 2;
+        const xOffset = marginMm + (contentWidth - imgWidth) / 2;
+        const yOffset = marginMm + (contentHeight - imgHeight) / 2;
         pdf.addImage(imgData, "PNG", xOffset, yOffset, imgWidth, imgHeight);
 
         const completed = i + 1;
@@ -311,27 +331,31 @@ function ReportsPage() {
   const positions = useMemo(() => {
     const posMap: Record<string, { rank: number; of: number }> = {};
     const classmates = studentsInClass;
+    const weights = school.examSetWeights ?? {};
+    const getWeight = (set: string) => (weights[set] ?? 1);
+
     const totals = classmates.map((s) => {
+      const selectedExamSets = getExamSetsForStudent(s);
       const subs = subjectsForStudent(s, allSubjects);
       const sum = subs.reduce((acc, sub) => {
         const papers = getSubjectPapers(sub.name, isAdvancedLevel(s.classLevel) ? "A" : "O");
-        const subjectTotal = selectedExamSets.reduce((subjectAcc, examSet) => {
-          return (
-            subjectAcc +
-            Array.from({ length: papers }, (_, idx) => {
-              const m = marks.find(
-                (x) =>
-                  x.studentId === s.id &&
-                  x.term === term &&
-                  x.subject === sub.name &&
-                  (x.examSet ?? "EOT") === examSet &&
-                  x.paper === idx + 1,
-              );
-              if (!m) return 0;
-              return m.score !== undefined ? m.score : (m.ca ?? 0) + (m.exam ?? 0);
-            }).reduce((a, b) => a + b, 0)
-          );
+        const totalMax = selectedExamSets.reduce((accW, set) => accW + getMaxMarks(set) * papers, 0) || 1;
+        const totalRaw = selectedExamSets.reduce((subjectAcc, examSet) => {
+          const paperSum = Array.from({ length: papers }, (_, idx) => {
+            const m = marks.find(
+              (x) =>
+                x.studentId === s.id &&
+                x.term === term &&
+                x.subject === sub.name &&
+                (x.examSet ?? "EOT") === examSet &&
+                x.paper === idx + 1,
+            );
+            if (!m) return 0;
+            return m.score !== undefined ? m.score : (m.ca ?? 0) + (m.exam ?? 0);
+          }).reduce((a, b) => a + b, 0);
+          return subjectAcc + paperSum;
         }, 0);
+        const subjectTotal = totalMax ? (totalRaw / totalMax) * 100 : totalRaw;
         return acc + subjectTotal;
       }, 0);
       return { id: s.id, total: sum };
@@ -342,7 +366,7 @@ function ReportsPage() {
       posMap[s.id] = { rank: idx + 1, of: totals.length };
     });
     return posMap;
-  }, [studentsInClass, allSubjects, marks, term, selectedExamSets]);
+  }, [studentsInClass, allSubjects, marks, term, ordinaryExamSets, advancedExamSets, school.examSetWeights]);
 
   function ord(n: number) {
     const s = ["th", "st", "nd", "rd"],
@@ -417,78 +441,7 @@ function ReportsPage() {
             <Share2 className="h-4 w-4 mr-1" /> Share
           </Button>
 
-          <Button
-            variant="outline"
-            onClick={async () => {
-              // Generate 30 Ordinary + 20 Advanced test students with random marks
-              try {
-                const ordLevels = ["S.1", "S.2", "S.3", "S.4"] as const;
-                const advLevels = ["S.5", "S.6"] as const;
-                const examSets = (school.selectedExamSets && school.selectedExamSets.length)
-                  ? school.selectedExamSets
-                  : ["EOT"];
-                const termVal = "Term 1";
-
-                // create ordinary students
-                for (let i = 0; i < 30; i++) {
-                  const id = crypto.randomUUID();
-                  const name = `Test O Student ${i + 1}`;
-                  const classLevel = ordLevels[i % ordLevels.length];
-                  addStudent({ id, name, classLevel, createdAt: Date.now() });
-                  // add marks for ordinary subjects
-                  for (const subj of ordinarySubjects) {
-                    const papers = getSubjectPapers(subj.name, "O");
-                    for (let p = 1; p <= papers; p++) {
-                      for (const ex of examSets) {
-                        const score = Math.floor(40 + Math.random() * 55);
-                        upsertMark({
-                          id: `${id}:${termVal}:${subj.name}:${p}:${ex}`,
-                          studentId: id,
-                          term: termVal as any,
-                          subject: subj.name,
-                          paper: p,
-                          examSet: ex as any,
-                          score,
-                        });
-                      }
-                    }
-                  }
-                }
-
-                // create advanced students
-                for (let i = 0; i < 20; i++) {
-                  const id = crypto.randomUUID();
-                  const name = `Test A Student ${i + 1}`;
-                  const classLevel = advLevels[i % advLevels.length];
-                  addStudent({ id, name, classLevel, createdAt: Date.now() });
-                  for (const subj of advancedSubjects) {
-                    const papers = getSubjectPapers(subj.name, "A");
-                    for (let p = 1; p <= papers; p++) {
-                      for (const ex of examSets) {
-                        const score = Math.floor(40 + Math.random() * 55);
-                        upsertMark({
-                          id: `${id}:${termVal}:${subj.name}:${p}:${ex}`,
-                          studentId: id,
-                          term: termVal as any,
-                          subject: subj.name,
-                          paper: p,
-                          examSet: ex as any,
-                          score,
-                        });
-                      }
-                    }
-                  }
-                }
-                toast.success("Generated 50 test students with marks.");
-              } catch (err) {
-                // eslint-disable-next-line no-console
-                console.error(err);
-                toast.error("Failed to generate test data.");
-              }
-            }}
-          >
-            Generate 50 test students
-          </Button>
+          {/* Test data generator removed to ensure production data cleanliness. */}
         </div>
 
         <div className="w-full max-w-xl mt-4 space-y-3">
@@ -676,7 +629,7 @@ function ReportsPage() {
                     subjects={subjectsForStudent(student, allSubjects)}
                     marks={marks}
                     projects={projects}
-                    selectedExamSets={selectedExamSets}
+                    selectedExamSets={getExamSetsForStudent(student)}
                     examSetLabels={examSetLabels}
                     position={positions[student.id]}
                     ord={ord}
@@ -730,6 +683,8 @@ function ReportCard(props: {
     debt,
   } = props;
   const advanced = isAdvancedLevel(student.classLevel);
+  const getExamSetLabel = (set: ExamSet) => examSetLabels[set] ?? set;
+  const getMaxMarks = (set: ExamSet) => school.examSetWeights?.[set] ?? 100;
   const reportPageColor = advanced
     ? school.reportCardPageColorAdvanced || school.reportCardPageColor || "#f8fafc"
     : school.reportCardPageColor || "#ffffff";
@@ -766,24 +721,76 @@ function ReportCard(props: {
       };
     });
 
+    const totalSetMax = selectedExamSets.reduce((acc, set) => acc + getMaxMarks(set), 0) || 1;
+    const totalMaxMarks = totalSetMax * papers;
+
     const totalScore = paperRows.reduce<number>((acc, row) => {
       return acc + row.scores.reduce<number>((inner, score) => inner + (score ?? 0), 0);
     }, 0);
 
-    const average =
-      papers > 0 && selectedExamSets.length > 0
-        ? totalScore / (papers * selectedExamSets.length)
-        : totalScore;
+    const average = papers > 0 && selectedExamSets.length > 0 ? (totalScore / totalMaxMarks) * 100 : totalScore;
 
-    const scale = getGradingScale(s.name, student.classLevel);
-    const g = gradeFor(average, scale, advanced, s.name);
+    // Determine final grade using UNEB logic for Advanced level, otherwise use existing gradeFor
+    let finalGrade = "";
+    let descriptor = "";
+    let logicRoute = "";
+    let evaluationLog = "";
+    let points: number | undefined = undefined;
+
+    if (advanced) {
+      // For UNEB grading, pick final paper marks (prefer EOT if available, else max across exam sets)
+      const paperFinalMarks = Array.from({ length: papers }, (_, paperIndex) => {
+        const scores = selectedExamSets.map((examSet) => {
+          const m = marks.find(
+            (x) =>
+              x.studentId === student.id &&
+              x.term === term &&
+              x.subject === s.name &&
+              (x.examSet ?? "EOT") === examSet &&
+              x.paper === paperIndex + 1,
+          );
+          if (!m) return undefined;
+          return m.score !== undefined ? m.score : (m.ca ?? 0) + (m.exam ?? 0);
+        }).filter((v) => v !== undefined) as number[];
+
+        const eotIndex = selectedExamSets.indexOf("EOT");
+        const eotScore = eotIndex >= 0 ? scores[eotIndex] : undefined;
+        if (typeof eotScore === "number") return eotScore;
+        if (scores.length === 0) return 0;
+        return Math.max(...scores);
+      });
+
+      const dosKey = `${student.id}:${term}:${s.name}`;
+      const dosOverride = (school as any).dosOverrides ? (school as any).dosOverrides[dosKey] : undefined;
+      const result = unebGrade(paperFinalMarks, dosOverride ?? null);
+      finalGrade = result.finalGrade;
+      descriptor = result.descriptor;
+      logicRoute = result.logicRoute;
+      evaluationLog = result.evaluationLog;
+      // map final grade to points for ranking display (simple mapping)
+      const ptsMap: Record<string, number> = { A: 6, B: 5, C: 4, D: 3, E: 2, O: 1, F: 0 };
+      points = ptsMap[finalGrade] ?? 0;
+    } else {
+      const scale = getGradingScale(s.name, student.classLevel);
+      const g = gradeFor(average, scale, advanced, s.name);
+      finalGrade = g.grade;
+      descriptor = g.comment || "";
+      logicRoute = "Standard Grading";
+      evaluationLog = "Computed using configured grading scale.";
+      points = g.points;
+    }
+
     return {
       subject: s.name,
       paperCount: Math.max(papers, 1),
       paperRows,
       totalScore,
       average,
-      ...g,
+      grade: finalGrade,
+      comment: advanced
+        ? `${"Final Subject Grade: " + finalGrade}\n${"Official Descriptor: " + descriptor}\n${"Logic Route Applied: " + logicRoute}\n${"Evaluation Log: " + evaluationLog}`
+        : descriptor,
+      points,
       hasData: paperRows.some((row) => row.scores.some((score) => score !== undefined)),
     };
   });
@@ -794,10 +801,8 @@ function ReportCard(props: {
 
   const totalMarks = rows.reduce((a, r) => a + r.totalScore, 0);
   const totalPoints = advanced ? rows.reduce((a, r) => a + (r.points ?? 0), 0) : 0;
-  const maxPossible = rows.reduce(
-    (acc, r) => acc + r.paperCount * selectedExamSets.length * 100,
-    0,
-  );
+  const maxMarksPerSubject = (selectedExamSets.reduce((acc, s) => acc + getMaxMarks(s), 0) || 1);
+  const maxPossible = rows.reduce((acc, r) => acc + r.paperCount * maxMarksPerSubject, 0);
   const avg = rows.length ? rows.reduce((a, r) => a + r.average, 0) / rows.length : 0;
 
   return (
@@ -811,7 +816,7 @@ function ReportCard(props: {
           color: reportContentColor,
           border: "none",
           position: "relative",
-          padding: "1.5cm",
+          padding: "1cm",
           "--report-heading-color": reportHeadingColor,
           "--report-heading-text": headingTextColor,
           "--report-page-soft": pageSoft,
@@ -823,7 +828,7 @@ function ReportCard(props: {
         @media print {
           @page {
             size: A4;
-            margin: 0;
+            margin: 10mm;
           }
           /* avoid resetting all elements here; global print rules live in src/styles.css */
           body {
@@ -843,11 +848,11 @@ function ReportCard(props: {
           .print-area {
             box-shadow: none !important;
             border: none !important;
-            margin: 15mm auto !important;
-            padding: 15mm !important;
-            max-width: calc(210mm - 30mm) !important;
-            width: calc(100% - 30mm) !important;
-            min-height: calc(297mm - 30mm) !important;
+            margin: 10mm auto !important;
+            padding: 10mm !important;
+            max-width: calc(210mm - 20mm) !important;
+            width: calc(100% - 20mm) !important;
+            min-height: calc(297mm - 20mm) !important;
             page-break-after: always;
             page-break-inside: avoid !important;
             break-after: page !important;
@@ -906,9 +911,9 @@ function ReportCard(props: {
           .print-area.advanced table th,
           .print-area.advanced table td { padding: 4px 6px !important; }
           .print-area .header-logo,
-          .print-area .student-photo { width: 8rem !important; height: 8rem !important; }
+          .print-area .student-photo { width: 8rem !important; height: 8rem !important; border-radius: 50% !important; }
           .print-area.advanced .header-logo,
-          .print-area.advanced .student-photo { width: 12rem !important; height: 12rem !important; }
+          .print-area.advanced .student-photo { width: 4cm !important; height: 4cm !important; border-radius: 50% !important; }
           .print-area.advanced .header-logo img,
           .print-area.advanced .student-photo img { width: 100% !important; height: 100% !important; object-fit: cover !important; }
         }
@@ -941,7 +946,7 @@ function ReportCard(props: {
         style={{ borderColor: reportHeadingColor, position: "relative", zIndex: 1 }}
       >
         <div className="flex items-center gap-3">
-          <div className={`rounded-full flex items-center justify-center shrink-0 overflow-hidden header-logo ${advanced ? 'h-48 w-48' : 'h-32 w-32'}`}>
+          <div className={`rounded-full flex items-center justify-center shrink-0 overflow-hidden header-logo ${advanced ? 'h-28 w-28' : 'h-32 w-32'}`}>
             {school.logoDataUrl ? (
               <img src={school.logoDataUrl} alt="badge" className="h-full w-full object-cover" />
             ) : (
@@ -970,7 +975,7 @@ function ReportCard(props: {
             <p className="text-[11px]">Email: {school.email}</p>
             <p className="text-[11px] italic mt-0 font-semibold">Motto: "{school.motto}"</p>
           </div>
-          <div className={`rounded-full flex items-center justify-center text-[11px] text-muted-foreground text-center overflow-hidden student-photo ${advanced ? 'h-48 w-48' : 'h-32 w-32'}`}>
+          <div className={`rounded-full flex items-center justify-center text-[11px] text-muted-foreground text-center overflow-hidden student-photo ${advanced ? 'h-28 w-28' : 'h-32 w-32'}`}>
             {student.photoDataUrl ? (
               <img
                 src={student.photoDataUrl}
@@ -1035,7 +1040,7 @@ function ReportCard(props: {
 
       {/* Marks table */}
       <table
-        className="w-full text-xs border-collapse"
+        className="w-full text-xs border-collapse break-words"
         style={{ position: "relative", zIndex: 2, borderCollapse: "collapse" }}
       >
         <thead>
@@ -1055,7 +1060,7 @@ function ReportCard(props: {
                 className="border p-1 text-center"
                 style={{ borderColor: reportHeadingColor }}
               >
-                {examSetLabels[set]}
+                {getExamSetLabel(set)}
               </th>
             ))}
             <th className="border p-1 text-center" style={{ borderColor: reportHeadingColor }}>
@@ -1140,11 +1145,19 @@ function ReportCard(props: {
                               {r.hasData ? r.grade : "—"}
                             </td>
                             <td
-                              className="border p-1"
+                              className="border p-1 break-words whitespace-normal"
                               rowSpan={paperRows.length}
                               style={{ borderColor: reportHeadingColor }}
                             >
-                              {r.hasData ? r.comment : "—"}
+                              {r.hasData ? (
+                                r.comment.split('\n').map((line, i) => (
+                                  <div key={i} className="text-[11px]">
+                                    {line}
+                                  </div>
+                                ))
+                              ) : (
+                                "—"
+                              )}
                             </td>
                           </>
                         )}
@@ -1196,10 +1209,18 @@ function ReportCard(props: {
                       {r.hasData ? (r.points ?? "—") : "—"}
                     </td>
                     <td
-                      className="border p-1"
+                      className="border p-1 break-words whitespace-normal"
                       style={{ borderColor: reportHeadingColor }}
                     >
-                      {r.hasData ? r.comment : "—"}
+                      {r.hasData ? (
+                        r.comment.split('\n').map((line, i) => (
+                          <div key={i} className="text-[11px]">
+                            {line}
+                          </div>
+                        ))
+                      ) : (
+                        "—"
+                      )}
                     </td>
                   </tr>
                 )}
@@ -1222,6 +1243,44 @@ function ReportCard(props: {
           </tr>
         </tbody>
       </table>
+
+      {/* Grading Scale */}
+      <div className="mt-2" style={{ position: "relative", zIndex: 2 }}>
+        <p className="font-semibold text-[11px] mb-2">
+          {advanced ? "A-Level Grading Scale" : "O-Level Grading Scale"}
+        </p>
+        {/* Unified two-row horizontal grading scale: first row = grades, second row = ranges */}
+        {(() => {
+          const scale = advanced ? A_LEVEL_SCALE : O_LEVEL_SCALE;
+          const colTemplate = `repeat(${scale.length}, minmax(0, 1fr))`;
+          return (
+            <div className="w-full overflow-x-auto">
+              <div className="grid gap-0.5" style={{ gridTemplateColumns: colTemplate }}>
+                {scale.map((row) => (
+                  <div
+                    key={`grade-${row.grade}`}
+                    className="text-center font-semibold p-2 border"
+                    style={{ borderColor: reportHeadingColor, backgroundColor: pageSoft }}
+                  >
+                    {row.grade}
+                  </div>
+                ))}
+              </div>
+              <div className="grid mt-1" style={{ gridTemplateColumns: colTemplate }}>
+                {scale.map((row) => (
+                  <div
+                    key={`band-${row.band}-${row.grade}`}
+                    className="text-center text-[10px] p-1 border text-muted-foreground"
+                    style={{ borderColor: reportHeadingColor }}
+                  >
+                    {row.band}
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
+      </div>
 
       {/* Project Work - Only for Ordinary Level */}
       {!advanced && (

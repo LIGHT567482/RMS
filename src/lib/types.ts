@@ -57,6 +57,7 @@ export interface Student {
   studentIdentificationNumber?: string;
   registrationNumber?: string;
   classLevel: ClassLevel;
+  stream?: string;
   gender?: Gender;
   photoDataUrl?: string;
   /** For S.2-S.4: subject names selected as their 2 optionals */
@@ -126,6 +127,13 @@ export interface SchoolInfo {
   reportCardColor?: string;
   reportCardWatermarkColored?: boolean;
   selectedExamSets?: ExamSet[];
+  selectedExamSetsOrdinary?: ExamSet[];
+  selectedExamSetsAdvanced?: ExamSet[];
+  reportCardExamSetsOrdinary?: ExamSet[];
+  reportCardExamSetsAdvanced?: ExamSet[];
+  /** Optional per-exam-set max marks (e.g. { EOT: 100, BOT: 30 }) */
+  examSetWeights?: Record<string, number>;
+  classStreams?: Record<ClassLevel, string[]>;
   studentIdentificationPrefix?: string;
   issueDate: string; // DD/MM/YYYY
   bursarFeesNextTerm?: string;
@@ -170,8 +178,8 @@ export interface GradeInfo {
 
 export type PaperGradingMode = "individual" | "pairs" | "all";
 
-export type ExamSet = "BOT" | "MOT" | "EOT";
-export const EXAM_SETS: ExamSet[] = ["BOT", "MOT", "EOT"];
+export type ExamSet = string;
+export const DEFAULT_EXAM_SETS: ExamSet[] = ["BOT", "MOT", "EOT"];
 
 export interface SubjectGradingConfig {
   subject: string;

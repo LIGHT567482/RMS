@@ -1,5 +1,5 @@
 import { Outlet, Link, createRootRoute, HeadContent, Scripts } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useState } from "react";
 import { AuthProvider } from "@/lib/auth";
 import {
   useStore,
@@ -9,9 +9,20 @@ import {
   setTheme,
   ensureInitialized,
 } from "@/lib/storage";
-import { Button } from "@/components/ui/button";
-import { Moon, Sun } from "lucide-react";
 import { Toaster } from "@/components/ui/sonner";
+
+const ThemeContext = createContext<{
+  theme: "light" | "dark";
+  toggleTheme: () => void;
+} | undefined>(undefined);
+
+export function useTheme() {
+  const context = useContext(ThemeContext);
+  if (!context) {
+    throw new Error("useTheme must be used within ThemeContext");
+  }
+  return context;
+}
 
 import appCss from "../styles.css?url";
 
@@ -114,12 +125,8 @@ function RootComponent() {
       vars.push(["--background", school.backgroundColor || defaultSchool.backgroundColor]);
       vars.push(["--foreground", school.foregroundColor || defaultSchool.foregroundColor]);
     } else {
-      if (school.backgroundColorDark) {
-        vars.push(["--background", school.backgroundColorDark]);
-      }
-      if (school.foregroundColorDark) {
-        vars.push(["--foreground", school.foregroundColorDark]);
-      }
+      vars.push(["--background", school.backgroundColorDark || defaultSchool.backgroundColorDark]);
+      vars.push(["--foreground", school.foregroundColorDark || defaultSchool.foregroundColorDark]);
     }
 
     vars.forEach(([key, value]) => {
@@ -139,23 +146,18 @@ function RootComponent() {
   }, [school]);
 
   return (
-    <AuthProvider>
-      <div className="min-h-screen">
-        <div className="fixed top-4 left-1/2 z-50 -translate-x-1/2">
-          <Button
-            size="icon"
-            variant="ghost"
-            type="button"
-            aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-            onClick={() => setThemeState(theme === "dark" ? "light" : "dark")}
-            className="bg-card text-card-foreground shadow-lg border border-border hover:opacity-90"
-          >
-            {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-          </Button>
+    <ThemeContext.Provider
+      value={{
+        theme,
+        toggleTheme: () => setThemeState((current) => (current === "dark" ? "light" : "dark")),
+      }}
+    >
+      <AuthProvider>
+        <div className="min-h-screen">
+          <Outlet />
+          <Toaster />
         </div>
-        <Outlet />
-        <Toaster />
-      </div>
-    </AuthProvider>
+      </AuthProvider>
+    </ThemeContext.Provider>
   );
 }

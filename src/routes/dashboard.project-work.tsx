@@ -334,7 +334,7 @@ function ProjectWorkPage() {
 
         <div className="space-y-6">
         {importRows.length > 0 && (
-          <Card className="overflow-x-auto">
+          <Card className="overflow-x-auto bg-card text-card-foreground">
             <div className="p-4 border-b flex items-center justify-between gap-3 flex-wrap">
               <div>
                 <p className="font-semibold">Import preview</p>
@@ -346,16 +346,16 @@ function ProjectWorkPage() {
                 <Button variant="outline" size="sm" onClick={() => setImportRows([])}>
                   Cancel preview
                 </Button>
-                <Button size="sm" onClick={applyImport}>
+                <Button size="sm" onClick={applyImport} disabled={!importRows.length}>
                   Apply selected rows
                 </Button>
               </div>
             </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-secondary text-secondary-foreground sticky top-0 z-20">
-                  <tr>
-                    <th className="p-3 text-left">Import</th>
+            <div className="overflow-x-auto bg-card">
+              <table className="w-full text-sm bg-card">
+                <thead className="bg-card text-secondary-foreground sticky top-0 z-20">
+                  <tr className="bg-card">
+                    <th className="p-3 text-left bg-card">Import</th>
                     <th className="p-3 text-left">Name</th>
                     <th className="p-3 text-left">Score</th>
                     <th className="p-3 text-left">Status</th>
