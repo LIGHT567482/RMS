@@ -1,6 +1,5 @@
 import { app, BrowserWindow, Menu, ipcMain } from 'electron';
 import path from 'path';
-import isDev from 'electron-is-dev';
 import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -37,13 +36,13 @@ function createWindow() {
     icon: path.join(__dirname, '..', 'public', 'icon.png')
   });
 
-  const startUrl = isDev
-    ? 'http://localhost:5173' // Vite dev server
-    : `file://${path.join(__dirname, '..', 'dist', 'index.html')}`;
+  const startUrl = app.isPackaged
+    ? `file://${path.join(__dirname, '..', 'dist', 'index.html')}`
+    : 'http://localhost:5173'; // Vite dev server
 
   mainWindow.loadURL(startUrl);
 
-  if (isDev) {
+  if (!app.isPackaged) {
     mainWindow.webContents.openDevTools();
   }
 

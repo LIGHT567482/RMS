@@ -37,6 +37,7 @@ src-tauri/target/
 # Electron / distribution artifacts
 dist-electron/
 light-distributor/
+branded/
 
 # Archives and large binaries
 *.zip
