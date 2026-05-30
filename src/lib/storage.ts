@@ -216,7 +216,7 @@ export function ensureInitialized() {
   write<Mark[]>(K.marks, []);
   write<ProjectWork[]>(K.projects, []);
   write<Combination[]>(K.combinations, defaultCombinations());
-  write<AuthInfo | null>(K.auth, null); // not yet set — first-time setup
+  write<AuthInfo | null>(K.auth, { accessCode: "12345" });
   write<Record<string, import("./types").PaperGradingMode>>(K.paperGradingConfig, {});
   write<Record<string, string>>(K.paperGradingTarget, {});
   window.localStorage.setItem(K.initialized, "1");

@@ -1,8 +1,9 @@
 {
-  "appId": "com.standardsecondaryschool.rms",
-  "productName": "S.S.S RMS",
+  "appId": "com.amplehighschool.rms",
+  "productName": "A.H.S RMS",
   "files": [
     "dist/**/*",
+    "electron-build/**/*",
     "node_modules/**/*",
     "electron/**/*",
     "branded/**/*",
@@ -12,6 +13,7 @@
     "output": "dist-electron",
     "buildResources": "public"
   },
+  "icon": "public/icon.ico",
   "artifactName": "${productName}-${version}-${arch}.${ext}",
   "win": {
     "target": [
@@ -36,17 +38,21 @@
     ],
     "certificateFile": null,
     "certificatePassword": null,
-    "signingHashAlgorithms": [
-      "sha256"
-    ],
-    "sign": null
+    "sign": null,
+    "signtoolOptions": {
+      "publisherName": "LIGHT TECHNOLOGIES",
+      "signingHashAlgorithms": [
+        "sha256"
+      ]
+    },
+    "publisherName": "LIGHT TECHNOLOGIES"
   },
   "nsis": {
     "oneClick": false,
     "allowToChangeInstallationDirectory": true,
     "createDesktopShortcut": true,
     "createStartMenuShortcut": true,
-    "shortcutName": "S.S.S RMS"
+    "shortcutName": "A.H.S RMS"
   },
   "msi": {
     "upgradeCode": "{1F1C2D4E-5A6B-7C8D-9E0F-1A2B3C4D5E6F}"

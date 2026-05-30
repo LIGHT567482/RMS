@@ -9,6 +9,7 @@ import {
   setTheme,
   ensureInitialized,
 } from "@/lib/storage";
+import { loadBrandingIntoStorage } from "@/lib/branding";
 import { Toaster } from "@/components/ui/sonner";
 
 const ThemeContext = createContext<{
@@ -93,8 +94,12 @@ function RootComponent() {
   const [theme, setThemeState] = useState<"light" | "dark">("light");
 
   useEffect(() => {
-    // Initialize storage with default subjects and school info on first load
+    // Initialize storage with default subjects and school info on first load,
+    // then apply any packaged or public branding values.
     ensureInitialized();
+    loadBrandingIntoStorage().catch(() => {
+      // Branding load is optional and should not block rendering.
+    });
   }, []);
 
   useEffect(() => {

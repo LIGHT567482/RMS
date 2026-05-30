@@ -36,8 +36,10 @@ src-tauri/target/
 
 # Electron / distribution artifacts
 dist-electron/
+electron-build/
 light-distributor/
 branded/
+!branded/branded.json
 
 # Archives and large binaries
 *.zip

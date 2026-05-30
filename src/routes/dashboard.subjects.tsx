@@ -9,7 +9,7 @@ function SubjectsRedirect() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Redirect to settings where subject management is admin-only
+    // Redirect to admin where subject management is admin-only
     navigate({ to: "/dashboard/settings", replace: true });
   }, [navigate]);
 

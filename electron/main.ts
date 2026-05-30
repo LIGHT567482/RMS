@@ -1,44 +1,57 @@
 import { app, BrowserWindow, Menu, ipcMain } from 'electron';
+import fs from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
+import { fileURLToPath, pathToFileURL } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+const DEFAULT_MANUFACTURER = 'LIGHT TECHNOLOGIES';
 let mainWindow: BrowserWindow | null = null;
 
-function createWindow() {
-  // Read branding config
-  let brandingConfig = {
-    productName: 'S.S.S RMS',
-    name: 'STANDARD SECONDARY SCHOOL'
+function readBrandingConfig() {
+  const defaultBranding = {
+    productName: 'RMS',
+    name: 'LIGHT TECHNOLOGIES',
+    manufacturer: DEFAULT_MANUFACTURER
   };
 
   try {
     const brandedPath = path.join(__dirname, '..', 'branded', 'branded.json');
-    const fs = await import('fs');
     const config = fs.readFileSync(brandedPath, 'utf-8');
-    brandingConfig = JSON.parse(config);
+    const branding = JSON.parse(config);
+    return {
+      ...defaultBranding,
+      ...branding,
+      manufacturer: DEFAULT_MANUFACTURER
+    };
   } catch (error) {
     console.warn('Using default branding config', error);
+    return defaultBranding;
   }
+}
+
+function createWindow() {
+  const brandingConfig = readBrandingConfig();
+  app.setName(brandingConfig.productName || 'RMS');
+  const preloadFile = path.join(__dirname, app.isPackaged ? 'preload.js' : 'preload.ts');
 
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
+    title: brandingConfig.productName || 'RMS',
     webPreferences: {
-      preload: path.join(__dirname, 'preload.ts'),
+      preload: preloadFile,
       nodeIntegration: false,
       contextIsolation: true,
-      enableRemoteModule: false,
       sandbox: true
     },
     icon: path.join(__dirname, '..', 'public', 'icon.png')
   });
 
   const startUrl = app.isPackaged
-    ? `file://${path.join(__dirname, '..', 'dist', 'index.html')}`
-    : 'http://localhost:5173'; // Vite dev server
+    ? pathToFileURL(path.join(__dirname, '..', 'dist', 'index.html')).toString()
+    : 'http://localhost:5173';
 
   mainWindow.loadURL(startUrl);
 
@@ -114,17 +127,19 @@ app.on('activate', () => {
   }
 });
 
-// IPC handlers for app info
 ipcMain.handle('get-app-info', () => {
   try {
     const brandedPath = path.join(__dirname, '..', 'branded', 'branded.json');
-    const fs = require('fs');
     const config = fs.readFileSync(brandedPath, 'utf-8');
-    return JSON.parse(config);
+    return {
+      ...JSON.parse(config),
+      manufacturer: DEFAULT_MANUFACTURER
+    };
   } catch (error) {
     return {
       productName: 'RMS',
-      name: 'Record Management System'
+      name: 'LIGHT TECHNOLOGIES',
+      manufacturer: DEFAULT_MANUFACTURER
     };
   }
 });

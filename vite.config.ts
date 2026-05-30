@@ -6,4 +6,17 @@
 // You can pass additional config via defineConfig({ vite: { ... } }) if needed.
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 
-export default defineConfig();
+// Ensure esbuild treats .js files containing JSX correctly during dependency
+// scanning/pre-bundling. Some upstream packages or generated files may be
+// discovered as .js but contain JSX syntax; instruct esbuild to parse them.
+export default defineConfig({
+	vite: {
+		optimizeDeps: {
+			esbuildOptions: {
+				loader: {
+					".js": "jsx",
+				},
+			},
+		},
+	},
+});

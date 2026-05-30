@@ -1,0 +1,17 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "outDir": "electron-build",
+    "rootDir": "electron",
+    "noEmit": false,
+    "declaration": false,
+    "sourceMap": false,
+    "types": ["node"],
+    "module": "ESNext",
+    "target": "ES2020",
+    "moduleResolution": "Bundler",
+    "allowImportingTsExtensions": false
+  },
+  "include": ["electron/**/*.ts"],
+  "exclude": ["node_modules", "electron-build"]
+}

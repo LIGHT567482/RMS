@@ -1,15 +1,17 @@
 directories:
   output: dist-electron
   buildResources: public
-appId: com.standardsecondaryschool.rms
-productName: S.S.S RMS
+appId: com.amplehighschool.rms
+productName: A.H.S RMS
 files:
   - filter:
       - dist/**/*
+      - electron-build/**/*
       - node_modules/**/*
       - electron/**/*
       - branded/**/*
       - public/**/*
+icon: public/icon.ico
 artifactName: ${productName}-${version}-${arch}.${ext}
 win:
   target:
@@ -24,15 +26,18 @@ win:
         - x64
   certificateFile: null
   certificatePassword: <stripped sensitive data>
-  signingHashAlgorithms:
-    - sha256
   sign: null
+  signtoolOptions:
+    publisherName: LIGHT TECHNOLOGIES
+    signingHashAlgorithms:
+      - sha256
+  publisherName: LIGHT TECHNOLOGIES
 nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true
   createDesktopShortcut: true
   createStartMenuShortcut: true
-  shortcutName: S.S.S RMS
+  shortcutName: A.H.S RMS
 msi:
   upgradeCode: '{1F1C2D4E-5A6B-7C8D-9E0F-1A2B3C4D5E6F}'
 electronVersion: 31.7.7

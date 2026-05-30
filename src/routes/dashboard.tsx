@@ -40,7 +40,7 @@ const NAV: { to: string; label: string; icon: any; exact?: boolean }[] = [
   { to: "/dashboard/marks", label: "Enter Marks", icon: ClipboardList },
   { to: "/dashboard/project-work", label: "Project Work", icon: Sparkles },
   { to: "/dashboard/continuous-assessment", label: "Continuous Assessment", icon: GraduationCap },
-  { to: "/dashboard/settings", label: "Settings", icon: Settings },
+  { to: "/dashboard/settings", label: "Admin", icon: Settings },
 ];
 
 function DashboardLayout() {

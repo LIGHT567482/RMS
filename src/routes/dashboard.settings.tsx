@@ -67,6 +67,8 @@ import {
   Users,
   FileText,
   LayoutGrid,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useNavigate } from "@tanstack/react-router";
@@ -115,10 +117,10 @@ function getPaperTargetOptions(
 }
 
 export const Route = createFileRoute("/dashboard/settings")({
-  component: SettingsPage,
+  component: AdminPage,
 });
 
-function SettingsPage() {
+function AdminPage() {
   const auth = useAuth();
   const navigate = useNavigate();
   const school = useStore(getSchool);
@@ -133,6 +135,8 @@ function SettingsPage() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isFirstSetup, setIsFirstSetup] = useState(false);
   const [showPasswordDialog, setShowPasswordDialog] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const ordinarySubjects = useStore(getOrdinarySubjects);
   const advancedSubjects = useStore(getAdvancedSubjects);
   const [gradingTab, setGradingTab] = useState<"view" | "edit">("view");
@@ -161,6 +165,13 @@ function SettingsPage() {
   const [newStreamName, setNewStreamName] = useState("");
   const [selectedPaperTarget, setSelectedPaperTarget] = useState("All Papers");
   const [subjectToDelete, setSubjectToDelete] = useState<{ id: string; name: string } | null>(null);
+  const [showPasswordChangeDialog, setShowPasswordChangeDialog] = useState(false);
+  const [oldPassword, setOldPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmNewPassword, setConfirmNewPassword] = useState("");
+  const [showOldPassword, setShowOldPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmNewPassword, setShowConfirmNewPassword] = useState(false);
 
   const subjectsForLevel = selectedLevel === "ordinary" ? ordinarySubjects : advancedSubjects;
 
@@ -263,6 +274,47 @@ function SettingsPage() {
       securityAnswer: securityAnswer || undefined,
     });
     toast.success("Security settings saved.");
+  }
+
+  function handlePasswordChange() {
+    const currentPassword = getAdminPassword();
+    
+    // Validate old password
+    if (!oldPassword.trim()) {
+      return toast.error("Please enter your current password.");
+    }
+    if (oldPassword !== currentPassword) {
+      return toast.error("Current password is incorrect.");
+    }
+
+    // Validate new password
+    if (!newPassword.trim()) {
+      return toast.error("Please enter a new password.");
+    }
+    if (newPassword === currentPassword) {
+      return toast.error("New password must be different from current password.");
+    }
+    if (!isValidAdminPassword(newPassword)) {
+      return toast.error(
+        "Password must be 8-10 characters and include an uppercase letter, a lowercase letter, a digit, and a special character.",
+      );
+    }
+
+    // Confirm new password
+    if (newPassword !== confirmNewPassword) {
+      return toast.error("New passwords do not match.");
+    }
+
+    // Update the password
+    setAdminPassword(newPassword);
+    
+    // Reset form and close dialog
+    setOldPassword("");
+    setNewPassword("");
+    setConfirmNewPassword("");
+    setShowPasswordChangeDialog(false);
+    
+    toast.success("Password changed successfully.");
   }
 
   function saveGradingScale() {
@@ -399,14 +451,24 @@ function SettingsPage() {
           <div className="space-y-4">
             <div>
               <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                type="password"
-                className="bg-muted"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Enter password"
-              />
+              <div className="relative">
+                <Input
+                  id="password"
+                  type={showPassword ? "text" : "password"}
+                  className="bg-muted pr-10"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Enter password"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
               {isFirstSetup && (
                 <p className="mt-2 text-xs text-muted-foreground">
                   8–10 chars, including uppercase, lowercase, digit, and special character.
@@ -416,14 +478,24 @@ function SettingsPage() {
             {isFirstSetup && (
               <div>
                 <Label htmlFor="confirm">Confirm Password</Label>
-                <Input
-                  id="confirm"
-                  type="password"
-                  className="bg-muted"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder="Confirm password"
-                />
+                <div className="relative">
+                  <Input
+                    id="confirm"
+                    type={showConfirmPassword ? "text" : "password"}
+                    className="bg-muted pr-10"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="Confirm password"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                    aria-label={showConfirmPassword ? "Hide password" : "Show password"}
+                  >
+                    {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
               </div>
             )}
           </div>
@@ -452,8 +524,8 @@ function SettingsPage() {
       <div className="max-w-7xl mx-auto">
         <div className="flex items-start gap-4">
           <div className="flex-1">
-            <h1 className="font-display text-3xl">Settings</h1>
-            <p className="text-muted-foreground">Configure security, examination, and academic settings.</p>
+            <h1 className="font-display text-3xl">Admin</h1>
+            <p className="text-muted-foreground">Configure security, examination, and academic administration.</p>
           </div>
         </div>
       </div>
@@ -556,7 +628,7 @@ function SettingsPage() {
           <div className="col-span-4">
             {activeSection === null ? (
               <Card className="p-12 text-center text-muted-foreground">
-                <p className="text-lg">Select a settings section from the menu on the left</p>
+                <p className="text-lg">Select an admin section from the menu on the left</p>
               </Card>
             ) : activeSection === "candidates" ? (
               <CandidatesSection students={students} />
@@ -576,6 +648,21 @@ function SettingsPage() {
                 onChange={changeCode}
                 auth={auth}
                 navigate={navigate}
+                showPasswordChangeDialog={showPasswordChangeDialog}
+                setShowPasswordChangeDialog={setShowPasswordChangeDialog}
+                oldPassword={oldPassword}
+                setOldPassword={setOldPassword}
+                newPassword={newPassword}
+                setNewPassword={setNewPassword}
+                confirmNewPassword={confirmNewPassword}
+                setConfirmNewPassword={setConfirmNewPassword}
+                showOldPassword={showOldPassword}
+                setShowOldPassword={setShowOldPassword}
+                showNewPassword={showNewPassword}
+                setShowNewPassword={setShowNewPassword}
+                showConfirmNewPassword={showConfirmNewPassword}
+                setShowConfirmNewPassword={setShowConfirmNewPassword}
+                onPasswordChange={handlePasswordChange}
               />
             ) : activeSection === "appearance" ? (
               <AppearanceSection />
@@ -662,7 +749,7 @@ function SettingsPage() {
               <br />
               <br />
               This subject will not automatically reappear. You can only add it back by manually
-              creating it again in this settings page.
+              creating it again in this admin page.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -1305,6 +1392,21 @@ function SecuritySection({
   onChange,
   auth,
   navigate,
+  showPasswordChangeDialog,
+  setShowPasswordChangeDialog,
+  oldPassword,
+  setOldPassword,
+  newPassword,
+  setNewPassword,
+  confirmNewPassword,
+  setConfirmNewPassword,
+  showOldPassword,
+  setShowOldPassword,
+  showNewPassword,
+  setShowNewPassword,
+  showConfirmNewPassword,
+  setShowConfirmNewPassword,
+  onPasswordChange,
 }: {
   securityQuestion: string;
   setSecurityQuestion: (value: string) => void;
@@ -1320,6 +1422,21 @@ function SecuritySection({
   onChange: () => void;
   auth: any;
   navigate: any;
+  showPasswordChangeDialog: boolean;
+  setShowPasswordChangeDialog: (show: boolean) => void;
+  oldPassword: string;
+  setOldPassword: (password: string) => void;
+  newPassword: string;
+  setNewPassword: (password: string) => void;
+  confirmNewPassword: string;
+  setConfirmNewPassword: (password: string) => void;
+  showOldPassword: boolean;
+  setShowOldPassword: (show: boolean) => void;
+  showNewPassword: boolean;
+  setShowNewPassword: (show: boolean) => void;
+  showConfirmNewPassword: boolean;
+  setShowConfirmNewPassword: (show: boolean) => void;
+  onPasswordChange: () => void;
 }) {
   return (
     <div className="space-y-4">
@@ -1362,10 +1479,34 @@ function SecuritySection({
             />
           </div>
         </div>
-        <div className="mt-5 flex justify-end">
+        <div className="mt-5 flex justify-end gap-3">
+          <Button 
+            onClick={() => setShowPasswordChangeDialog(true)}
+            variant="outline"
+          >
+            Change Dashboard Password
+          </Button>
           <Button onClick={onSave}>Save Recovery Settings</Button>
         </div>
       </Card>
+
+      <PasswordChangeDialog
+        open={showPasswordChangeDialog}
+        onOpenChange={setShowPasswordChangeDialog}
+        oldPassword={oldPassword}
+        setOldPassword={setOldPassword}
+        newPassword={newPassword}
+        setNewPassword={setNewPassword}
+        confirmNewPassword={confirmNewPassword}
+        setConfirmNewPassword={setConfirmNewPassword}
+        showOldPassword={showOldPassword}
+        setShowOldPassword={setShowOldPassword}
+        showNewPassword={showNewPassword}
+        setShowNewPassword={setShowNewPassword}
+        showConfirmNewPassword={showConfirmNewPassword}
+        setShowConfirmNewPassword={setShowConfirmNewPassword}
+        onConfirm={onPasswordChange}
+      />
 
       <AccessCodeSection newCode={newCode} setNewCode={setNewCode} onChange={onChange} />
 
@@ -2073,6 +2214,131 @@ function AccessCodeSection({
         <Button onClick={onChange}>Change Code</Button>
       </div>
     </Card>
+  );
+}
+
+function PasswordChangeDialog({
+  open,
+  onOpenChange,
+  oldPassword,
+  setOldPassword,
+  newPassword,
+  setNewPassword,
+  confirmNewPassword,
+  setConfirmNewPassword,
+  showOldPassword,
+  setShowOldPassword,
+  showNewPassword,
+  setShowNewPassword,
+  showConfirmNewPassword,
+  setShowConfirmNewPassword,
+  onConfirm,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  oldPassword: string;
+  setOldPassword: (password: string) => void;
+  newPassword: string;
+  setNewPassword: (password: string) => void;
+  confirmNewPassword: string;
+  setConfirmNewPassword: (password: string) => void;
+  showOldPassword: boolean;
+  setShowOldPassword: (show: boolean) => void;
+  showNewPassword: boolean;
+  setShowNewPassword: (show: boolean) => void;
+  showConfirmNewPassword: boolean;
+  setShowConfirmNewPassword: (show: boolean) => void;
+  onConfirm: () => void;
+}) {
+  const handleClose = () => {
+    onOpenChange(false);
+    // Reset form when closing
+    setOldPassword("");
+    setNewPassword("");
+    setConfirmNewPassword("");
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={handleClose}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Change Dashboard Password</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="old-password">Current Password</Label>
+            <div className="relative">
+              <Input
+                id="old-password"
+                type={showOldPassword ? "text" : "password"}
+                value={oldPassword}
+                onChange={(e) => setOldPassword(e.target.value)}
+                placeholder="Enter your current password"
+              />
+              <button
+                type="button"
+                onClick={() => setShowOldPassword(!showOldPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              >
+                {showOldPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="new-password">New Password</Label>
+            <div className="relative">
+              <Input
+                id="new-password"
+                type={showNewPassword ? "text" : "password"}
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                placeholder="Enter new password (8-10 characters)"
+              />
+              <button
+                type="button"
+                onClick={() => setShowNewPassword(!showNewPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              >
+                {showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Must include uppercase, lowercase, digit, and special character
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="confirm-password">Confirm New Password</Label>
+            <div className="relative">
+              <Input
+                id="confirm-password"
+                type={showConfirmNewPassword ? "text" : "password"}
+                value={confirmNewPassword}
+                onChange={(e) => setConfirmNewPassword(e.target.value)}
+                placeholder="Confirm new password"
+              />
+              <button
+                type="button"
+                onClick={() => setShowConfirmNewPassword(!showConfirmNewPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              >
+                {showConfirmNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <DialogFooter className="gap-2">
+          <Button variant="outline" onClick={handleClose}>
+            Cancel
+          </Button>
+          <Button onClick={onConfirm}>
+            Change Password
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
