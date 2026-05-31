@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { createElement, isValidElement, useEffect, useState, type ElementType, type ReactNode } from "react";
+import { createElement, isValidElement, useEffect, useState, type ChangeEvent, type ElementType, type ReactNode } from "react";
 import {
   useStore,
   getSchool,
@@ -945,6 +945,21 @@ function ExamSetsSection() {
           <p className="text-xs text-muted-foreground mb-3">
             Choose the one exam set that will be used for generating Ordinary level report cards.
           </p>
+          <div className="mb-3">
+            <Label>Report Card Set (Ordinary)</Label>
+            <Select value={reportOrdinarySet} onValueChange={(v) => setReportOrdinarySet(v as ExamSet)}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {ordinarySets.map((s) => (
+                  <SelectItem key={s} value={s}>
+                    {s}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           <table className="w-full text-sm">
             <thead>
               <tr>
@@ -960,16 +975,11 @@ function ExamSetsSection() {
                   <td className="p-2 font-medium">{s}</td>
                   <td className="p-2">{weights[s] ?? "—"}</td>
                   <td className="p-2">
-                    <input
-                      type="radio"
-                      name="report-ordinary-set"
-                      checked={reportOrdinarySet === s}
-                      onChange={() => setReportOrdinarySet(s)}
-                      className="mr-2"
-                      aria-label={`Use ${s} for Ordinary report cards`}
-                      title={`Use ${s} for Ordinary report cards`}
-                    />
-                    <span className="inline-block">Use</span>
+                    {reportOrdinarySet === s ? (
+                      <span className="inline-block font-medium text-success">Selected</span>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
                   </td>
                   <td className="p-2">
                     <Button variant="destructive" size="sm" onClick={() => removeOrdinarySet(s)}>
@@ -987,6 +997,21 @@ function ExamSetsSection() {
           <p className="text-xs text-muted-foreground mb-3">
             Choose the one exam set that will be used for generating Advanced level report cards.
           </p>
+          <div className="mb-3">
+            <Label>Report Card Set (Advanced)</Label>
+            <Select value={reportAdvancedSet} onValueChange={(v) => setReportAdvancedSet(v as ExamSet)}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {advancedSets.map((s) => (
+                  <SelectItem key={s} value={s}>
+                    {s}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           <table className="w-full text-sm">
             <thead>
               <tr>
@@ -1002,16 +1027,11 @@ function ExamSetsSection() {
                   <td className="p-2 font-medium">{s}</td>
                   <td className="p-2">{weights[s] ?? "—"}</td>
                   <td className="p-2">
-                    <input
-                      type="radio"
-                      name="report-advanced-set"
-                      checked={reportAdvancedSet === s}
-                      onChange={() => setReportAdvancedSet(s)}
-                      className="mr-2"
-                      aria-label={`Use ${s} for Advanced report cards`}
-                      title={`Use ${s} for Advanced report cards`}
-                    />
-                    <span className="inline-block">Use</span>
+                    {reportAdvancedSet === s ? (
+                      <span className="inline-block font-medium text-success">Selected</span>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
                   </td>
                   <td className="p-2">
                     <Button variant="destructive" size="sm" onClick={() => removeAdvancedSet(s)}>
@@ -1145,6 +1165,10 @@ function AppearanceSection() {
   const [foregroundColor, setForegroundColor] = useState(school.foregroundColor || "#111111");
   const [backgroundColorDark, setBackgroundColorDark] = useState(school.backgroundColorDark || "#0f172a");
   const [foregroundColorDark, setForegroundColorDark] = useState(school.foregroundColorDark || "#f8fafc");
+  const [backgroundImageUrlLight, setBackgroundImageUrlLight] = useState(school.backgroundImageUrlLight || "");
+  const [useBackgroundImageLight, setUseBackgroundImageLight] = useState<boolean>(school.useBackgroundImageLight ?? false);
+  const [backgroundImageUrlDark, setBackgroundImageUrlDark] = useState(school.backgroundImageUrlDark || "");
+  const [useBackgroundImageDark, setUseBackgroundImageDark] = useState<boolean>(school.useBackgroundImageDark ?? false);
 
   const [reportPageColor, setReportPageColor] = useState(school.reportCardPageColor || "#ffffff");
   const [reportContentColor, setReportContentColor] = useState(school.reportCardContentColor || "#111111");
@@ -1152,9 +1176,51 @@ function AppearanceSection() {
   const [reportPageColorAdv, setReportPageColorAdv] = useState(school.reportCardPageColorAdvanced || "#f8fafc");
   const [reportContentColorAdv, setReportContentColorAdv] = useState(school.reportCardContentColorAdvanced || "#111111");
   const [reportHeadingColorAdv, setReportHeadingColorAdv] = useState(school.reportCardHeadingColorAdvanced || "#dc2626");
+  const [headSignatureDataUrl, setHeadSignatureDataUrl] = useState(
+    school.reportCardHeadSignatureDataUrl || "",
+  );
+  const [stampDataUrl, setStampDataUrl] = useState(school.reportCardStampDataUrl || "");
   const [watermarkColored, setWatermarkColored] = useState<boolean>(
     school.reportCardWatermarkColored ?? true,
   );
+
+  function handleHeadSignatureUpload(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => setHeadSignatureDataUrl(reader.result as string);
+    reader.readAsDataURL(file);
+  }
+
+  function handleStampUpload(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => setStampDataUrl(reader.result as string);
+    reader.readAsDataURL(file);
+  }
+
+  function handleBackgroundImageUploadLight(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      setBackgroundImageUrlLight(reader.result as string);
+      setUseBackgroundImageLight(true);
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function handleBackgroundImageUploadDark(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      setBackgroundImageUrlDark(reader.result as string);
+      setUseBackgroundImageDark(true);
+    };
+    reader.readAsDataURL(file);
+  }
 
   function saveAppearance() {
     setSchool({
@@ -1166,6 +1232,10 @@ function AppearanceSection() {
       foregroundColor,
       backgroundColorDark,
       foregroundColorDark,
+      backgroundImageUrlLight: backgroundImageUrlLight || undefined,
+      useBackgroundImageLight,
+      backgroundImageUrlDark: backgroundImageUrlDark || undefined,
+      useBackgroundImageDark,
       reportCardPageColor: reportPageColor,
       reportCardContentColor: reportContentColor,
       reportCardHeadingColor: reportHeadingColor,
@@ -1173,17 +1243,46 @@ function AppearanceSection() {
       reportCardContentColorAdvanced: reportContentColorAdv,
       reportCardHeadingColorAdvanced: reportHeadingColorAdv,
       reportCardWatermarkColored: watermarkColored,
+      reportCardHeadSignatureDataUrl: headSignatureDataUrl || undefined,
+      reportCardStampDataUrl: stampDataUrl || undefined,
     });
     toast.success("Appearance settings saved.");
   }
 
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const root = document.documentElement;
+    const shouldUseLightImage = useBackgroundImageLight && Boolean(backgroundImageUrlLight);
+    const shouldUseDarkImage = useBackgroundImageDark && Boolean(backgroundImageUrlDark);
+    const themeIsLight = root.classList.contains("dark") === false;
+    const shouldUseImage = themeIsLight ? shouldUseLightImage : shouldUseDarkImage;
+    const imageUrl = themeIsLight ? backgroundImageUrlLight : backgroundImageUrlDark;
+    const imageStyle = shouldUseImage && imageUrl ? `url("${imageUrl}")` : "none";
+    root.style.setProperty("--app-background-image", imageStyle);
+    root.style.setProperty("--app-background-size", shouldUseImage ? "cover" : "");
+    root.style.setProperty("--app-background-position", shouldUseImage ? "center" : "");
+    root.style.setProperty("--app-background-repeat", shouldUseImage ? "no-repeat" : "");
+    root.style.setProperty("--app-background-attachment", shouldUseImage ? "fixed" : "");
+    document.body.style.backgroundImage = imageStyle;
+    document.body.style.backgroundSize = shouldUseImage ? "cover" : "";
+    document.body.style.backgroundPosition = shouldUseImage ? "center" : "";
+    document.body.style.backgroundRepeat = shouldUseImage ? "no-repeat" : "";
+    document.body.style.backgroundAttachment = shouldUseImage ? "fixed" : "";
+    console.log(
+      `[RMS Background Preview] themeIsLight=${themeIsLight} shouldUseImage=${shouldUseImage} imageStyle=${imageStyle} bodyStyle=${document.body.style.backgroundImage}`,
+    );
+  }, [backgroundImageUrlLight, backgroundImageUrlDark, useBackgroundImageLight, useBackgroundImageDark]);
+
   return (
     <Card className="p-6">
       <h2 className="font-semibold flex items-center gap-2 mb-4">
-        <Sliders className="h-4 w-4" /> Appearance (Colors)
+        <Sliders className="h-4 w-4" /> Appearance (Colors & Background Images)
       </h2>
       <p className="text-sm text-muted-foreground mb-4">
-        Color branding is editable here. Full school branding such as logo, name, and address remain managed in Light Distributor.
+        Background colors remain available, but you can also upload a light-mode and dark-mode background image. Each image is theme-specific and only applies when that mode is active.
+      </p>
+      <p className="text-sm text-muted-foreground mb-4">
+        Uploading an image will automatically enable the matching mode toggle. If the image still does not appear, check that the current theme matches the image type.
       </p>
       <div className="grid gap-4 xl:grid-cols-3">
         <div className="rounded-lg border border-border bg-background shadow-sm">
@@ -1222,6 +1321,42 @@ function AppearanceSection() {
             <div className="grid grid-cols-[1fr_auto] items-center gap-3 px-4 py-4">
               <span>Foreground Color (Dark)</span>
               <input id="foreground-color-dark" title="Foreground Color (Dark Mode)" type="color" value={foregroundColorDark} onChange={(e) => setForegroundColorDark(e.target.value)} className="h-10 w-20" />
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-lg border border-border bg-background shadow-sm">
+          <div className="border-b border-border px-4 py-3 font-semibold">Background Images</div>
+          <div className="divide-y divide-border">
+            <div className="grid gap-4 px-4 py-4">
+              <div className="grid grid-cols-[1fr_auto] items-center gap-3">
+                <span>Use Light Mode Background Image</span>
+                <Switch checked={useBackgroundImageLight} onCheckedChange={(value) => setUseBackgroundImageLight(Boolean(value))} />
+              </div>
+              <div className="grid grid-cols-[1fr_auto] items-center gap-3">
+                <span>Light Mode Background Image</span>
+                <Input type="file" accept="image/*" onChange={handleBackgroundImageUploadLight} className="h-10 w-full" />
+              </div>
+              {backgroundImageUrlLight ? (
+                <img src={backgroundImageUrlLight} alt="Light mode background preview" className="h-32 w-full rounded border object-cover" />
+              ) : (
+                <p className="text-xs text-muted-foreground">Upload a JPG/PNG for light mode background.</p>
+              )}
+            </div>
+            <div className="grid gap-4 px-4 py-4">
+              <div className="grid grid-cols-[1fr_auto] items-center gap-3">
+                <span>Use Dark Mode Background Image</span>
+                <Switch checked={useBackgroundImageDark} onCheckedChange={(value) => setUseBackgroundImageDark(Boolean(value))} />
+              </div>
+              <div className="grid grid-cols-[1fr_auto] items-center gap-3">
+                <span>Dark Mode Background Image</span>
+                <Input type="file" accept="image/*" onChange={handleBackgroundImageUploadDark} className="h-10 w-full" />
+              </div>
+              {backgroundImageUrlDark ? (
+                <img src={backgroundImageUrlDark} alt="Dark mode background preview" className="h-32 w-full rounded border object-cover" />
+              ) : (
+                <p className="text-xs text-muted-foreground">Upload a JPG/PNG for dark mode background.</p>
+              )}
             </div>
           </div>
         </div>
@@ -1266,9 +1401,41 @@ function AppearanceSection() {
         </div>
       </div>
 
+      <div className="mt-6 rounded-lg border border-border bg-background shadow-sm p-4">
+        <h3 className="font-semibold mb-3">Report Card Signature & Stamp</h3>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <Label>Head Teacher Signature</Label>
+            <Input type="file" accept="image/*" onChange={handleHeadSignatureUpload} className="mt-2" />
+            {headSignatureDataUrl ? (
+              <img
+                src={headSignatureDataUrl}
+                alt="Head signature preview"
+                className="mt-3 h-24 w-full object-contain rounded border"
+              />
+            ) : (
+              <p className="text-xs text-muted-foreground mt-2">Upload a PNG/JPG signature to print on report cards.</p>
+            )}
+          </div>
+          <div>
+            <Label>Head Teacher Stamp</Label>
+            <Input type="file" accept="image/*" onChange={handleStampUpload} className="mt-2" />
+            {stampDataUrl ? (
+              <img
+                src={stampDataUrl}
+                alt="Stamp preview"
+                className="mt-3 h-24 w-full object-contain rounded border"
+              />
+            ) : (
+              <p className="text-xs text-muted-foreground mt-2">Upload a PNG/JPG stamp to print on report cards.</p>
+            )}
+          </div>
+        </div>
+      </div>
+
       <div className="mt-6">
         <Button onClick={saveAppearance} className="bg-primary/15 text-primary hover:bg-primary/20">
-          Save Colors
+          Save Appearance Settings
         </Button>
       </div>
     </Card>

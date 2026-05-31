@@ -60,6 +60,43 @@ function withAlpha(hex: string, alpha: number) {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
+function getRotationAngle(key: string, range: number, offset = 0) {
+  let hash = 0;
+  for (let i = 0; i < key.length; i++) {
+    hash = (hash * 31 + key.charCodeAt(i)) >>> 0;
+  }
+  const angle = ((hash % range) - range / 2) + offset;
+  return Number(angle.toFixed(1));
+}
+
+const COMMENT_LIMITS = {
+  words: 30,
+  chars: 180,
+};
+
+function countWords(value: string) {
+  return (value.trim().match(/\S+/g) || []).length;
+}
+
+function enforceCommentLimits(value: string, maxWords: number, maxChars: number) {
+  const truncated = value.slice(0, maxChars);
+  const tokens = truncated.split(/(\s+)/);
+  let words = 0;
+  let cutIndex = tokens.length;
+
+  for (let i = 0; i < tokens.length; i++) {
+    if (!/^\s*$/.test(tokens[i])) {
+      words += 1;
+      if (words > maxWords) {
+        cutIndex = i;
+        break;
+      }
+    }
+  }
+
+  return tokens.slice(0, cutIndex).join("");
+}
+
 function isLightColor(hex: string) {
   if (!hex.startsWith("#")) return true;
   let cleaned = hex.slice(1);
@@ -120,6 +157,11 @@ function ReportsPage() {
   const [term, setTerm] = useState<Term | "">("" as any);
   const [issueDate, setIssueDate] = useState(school.issueDate);
   const [classTeacherComment, setClassTeacherComment] = useState("");
+  const [bursarComment, setBursarComment] = useState("");
+  const [bursarCommentScope, setBursarCommentScope] = useState<"selected-group" | "class" | "student">(
+    "selected-group",
+  );
+  const [bursarCommentStudentId, setBursarCommentStudentId] = useState<string>("");
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [pdfBatchSize, setPdfBatchSize] = useState(10);
   const [pdfProgress, setPdfProgress] = useState(0);
@@ -146,6 +188,26 @@ function ReportsPage() {
     () => students.filter((s) => selectedStudents.includes(s.id)),
     [students, selectedStudents],
   );
+
+  useEffect(() => {
+    if (bursarCommentScope === "student" && !bursarCommentStudentId && students.length > 0) {
+      setBursarCommentStudentId(students[0].id);
+    }
+  }, [bursarCommentScope, bursarCommentStudentId, students]);
+
+  const getBursarCommentForStudent = (student: Student) => {
+    if (!bursarComment.trim()) return "";
+    if (bursarCommentScope === "selected-group") {
+      return selectedStudents.includes(student.id) ? bursarComment : "";
+    }
+    if (bursarCommentScope === "class") {
+      return classLevel !== "all" && student.classLevel === classLevel ? bursarComment : "";
+    }
+    if (bursarCommentScope === "student") {
+      return student.id === bursarCommentStudentId ? bursarComment : "";
+    }
+    return "";
+  };
 
   async function generateReportsPdf() {
     if (selectedStudentObjects.length === 0) {
@@ -586,18 +648,86 @@ function ReportsPage() {
             <Textarea
               rows={3}
               value={classTeacherComment}
-              onChange={(e) => setClassTeacherComment(e.target.value)}
+              maxLength={COMMENT_LIMITS.chars}
+              onChange={(e) =>
+                setClassTeacherComment(
+                  enforceCommentLimits(e.target.value, COMMENT_LIMITS.words, COMMENT_LIMITS.chars),
+                )
+              }
               placeholder="Optional class teacher comment for the printed report."
             />
+            <p className="text-xs text-muted-foreground mt-1">
+              {countWords(classTeacherComment)}/{COMMENT_LIMITS.words} words · {classTeacherComment.length}/{COMMENT_LIMITS.chars} chars
+            </p>
+          </div>
+          <div>
+            <Label>Bursar Comment Scope</Label>
+            <Select value={bursarCommentScope} onValueChange={(value) => setBursarCommentScope(value as "selected-group" | "class" | "student")}>
+              <SelectTrigger>
+                <SelectValue placeholder="Choose comment target" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="selected-group">Selected student group</SelectItem>
+                <SelectItem value="class">Entire class</SelectItem>
+                <SelectItem value="student">Specific student</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          {bursarCommentScope === "student" && (
+            <div>
+              <Label>Target Student</Label>
+              <Select value={bursarCommentStudentId} onValueChange={setBursarCommentStudentId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Choose a student" />
+                </SelectTrigger>
+                <SelectContent>
+                  {students.map((student) => (
+                    <SelectItem key={student.id} value={student.id}>
+                      {student.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+          <div>
+            <Label>Bursar Comment</Label>
+            <Textarea
+              rows={4}
+              value={bursarComment}
+              maxLength={COMMENT_LIMITS.chars}
+              onChange={(e) =>
+                setBursarComment(
+                  enforceCommentLimits(e.target.value, COMMENT_LIMITS.words, COMMENT_LIMITS.chars),
+                )
+              }
+              placeholder="Type bursar comments for the selected student(s) or class here."
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              {countWords(bursarComment)}/{COMMENT_LIMITS.words} words · {bursarComment.length}/{COMMENT_LIMITS.chars} chars
+            </p>
+            {bursarCommentScope === "class" && classLevel === "all" ? (
+              <p className="text-xs text-amber-600 mt-1">
+                Choose a class above to apply this comment to a class report.
+              </p>
+            ) : null}
           </div>
           <div>
             <Label>Head Teacher Comment</Label>
             <Textarea
               rows={4}
               value={headComment}
-              onChange={(e) => setHeadComment(e.target.value)}
+              maxLength={COMMENT_LIMITS.chars}
+              onChange={(e) =>
+                setHeadComment(
+                  enforceCommentLimits(e.target.value, COMMENT_LIMITS.words, COMMENT_LIMITS.chars),
+                )
+              }
               placeholder="Optional comment for the printed report."
             />
+            <p className="text-xs text-muted-foreground mt-1">
+              {countWords(headComment)}/{COMMENT_LIMITS.words} words · {headComment.length}/{COMMENT_LIMITS.chars} chars
+            </p>
           </div>
           <Button
             variant="secondary"
@@ -635,6 +765,7 @@ function ReportsPage() {
                     ord={ord}
                     classTeacherComment={classTeacherComment}
                     headComment={headComment}
+                    bursarComment={getBursarCommentForStudent(student)}
                     feesNext={feesNext}
                     debt={debt}
                   />
@@ -662,6 +793,7 @@ function ReportCard(props: {
   ord: (n: number) => string;
   classTeacherComment: string;
   headComment: string;
+  bursarComment: string;
   feesNext: string;
   debt: string;
 }) {
@@ -679,6 +811,7 @@ function ReportCard(props: {
     ord,
     classTeacherComment,
     headComment,
+    bursarComment,
     feesNext,
     debt,
   } = props;
@@ -702,6 +835,8 @@ function ReportCard(props: {
 
   const rows = subjects.map((s) => {
     const papers = getSubjectPapers(s.name, advanced ? "A" : "O");
+    const totalSetMax = selectedExamSets.reduce((acc, set) => acc + getMaxMarks(set), 0) || 1;
+
     const paperRows = Array.from({ length: papers }, (_, paperIndex) => {
       const scores = selectedExamSets.map((examSet) => {
         const m = marks.find(
@@ -715,13 +850,16 @@ function ReportCard(props: {
         if (!m) return undefined;
         return m.score !== undefined ? m.score : (m.ca ?? 0) + (m.exam ?? 0);
       });
+      const paperTotal = scores.reduce<number>((inner, score) => inner + (score ?? 0), 0);
+      const paperAverage = selectedExamSets.length > 0 ? (paperTotal / totalSetMax) * 100 : paperTotal;
       return {
         label: `Paper ${paperIndex + 1}`,
         scores,
+        total: paperTotal,
+        average: paperAverage,
       };
     });
 
-    const totalSetMax = selectedExamSets.reduce((acc, set) => acc + getMaxMarks(set), 0) || 1;
     const totalMaxMarks = totalSetMax * papers;
 
     const totalScore = paperRows.reduce<number>((acc, row) => {
@@ -803,7 +941,8 @@ function ReportCard(props: {
   const totalPoints = advanced ? rows.reduce((a, r) => a + (r.points ?? 0), 0) : 0;
   const maxMarksPerSubject = (selectedExamSets.reduce((acc, s) => acc + getMaxMarks(s), 0) || 1);
   const maxPossible = rows.reduce((acc, r) => acc + r.paperCount * maxMarksPerSubject, 0);
-  const avg = rows.length ? rows.reduce((a, r) => a + r.average, 0) / rows.length : 0;
+  const paperAverages = rows.flatMap((r) => r.paperRows.map((row) => row.average));
+  const avg = paperAverages.length ? paperAverages.reduce((a, v) => a + v, 0) / paperAverages.length : 0;
 
   return (
     <Card
@@ -1304,16 +1443,42 @@ function ReportCard(props: {
       {/* Bottom: comment + signature + bursar */}
       <div className="mt-1.5 grid grid-cols-2 gap-1.5 text-[10px]">
         <div>
-          <p className="font-semibold mb-0.5 text-[10px]">Class Teacher's Comment:</p>
-          <div className="min-h-[24px] border-b border-dotted border-foreground/40 px-1 py-0.5 text-[10px]">
-            {classTeacherComment}
+          <div className="relative">
+            {school.reportCardStampDataUrl ? (
+              <img
+                src={school.reportCardStampDataUrl}
+                alt="School stamp"
+                className="absolute right-0 w-72 h-72 object-contain opacity-90"
+                style={{
+                  top: -22,
+                  transform: `rotate(${getRotationAngle(student.id + "-stamp", 24)}deg)`,
+                  zIndex: 2,
+                }}
+              />
+            ) : null}
+            <p className="font-semibold mb-0.5 text-[10px]">Class Teacher's Comment:</p>
+            <div className="min-h-[24px] border-b border-dotted border-foreground/40 px-1 py-0.5 text-[10px] whitespace-pre-wrap break-words">
+              {classTeacherComment}
+            </div>
+            <p className="mt-1 font-semibold mb-0.5 text-[10px]">Head Teacher's Comment:</p>
+            <div className="min-h-[24px] border-b border-dotted border-foreground/40 px-1 py-0.5 text-[10px] whitespace-pre-wrap break-words">
+              {headComment}
+            </div>
+            <p className="mt-1 font-semibold mb-0.5 text-[10px]">Head Signature:</p>
+            {school.reportCardHeadSignatureDataUrl ? (
+              <img
+                src={school.reportCardHeadSignatureDataUrl}
+                alt="Head signature"
+                className="h-16 object-contain"
+                style={{
+                  maxWidth: "100%",
+                  transform: `rotate(${getRotationAngle(student.id + "-signature", 10, 2)}deg)`,
+                }}
+              />
+            ) : (
+              <div className="border-b border-foreground/60 h-4" />
+            )}
           </div>
-          <p className="mt-1 font-semibold mb-0.5 text-[10px]">Head Teacher's Comment:</p>
-          <div className="min-h-[24px] border-b border-dotted border-foreground/40 px-1 py-0.5 text-[10px]">
-            {headComment}
-          </div>
-          <p className="mt-1 font-semibold mb-0.5 text-[10px]">Head Signature:</p>
-          <div className="border-b border-foreground/60 h-4" />
         </div>
         <div
           className="rounded border p-1.5"
@@ -1321,6 +1486,12 @@ function ReportCard(props: {
         >
           <p className="font-semibold mb-1 text-[10px]">Bursar</p>
           <div className="text-[10px] space-y-1">
+            <div>
+              <p className="text-muted-foreground text-[10px]">Bursar comment:</p>
+              <div className="border-b border-foreground/40 min-h-[24px] px-1 py-0.5 text-[10px] whitespace-pre-wrap break-words">
+                {bursarComment || "—"}
+              </div>
+            </div>
             <div>
               <p className="text-muted-foreground text-[10px]">Next term fees:</p>
               <div className="border-b border-foreground/40 min-h-[16px] px-1 py-0.5 text-[10px]">

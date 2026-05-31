@@ -58,14 +58,20 @@ async function loadBrandingFromElectron(): Promise<BrandingSource | null> {
 async function loadBrandingFromPublicFile(): Promise<BrandingSource | null> {
   if (typeof window === 'undefined') return null;
 
-  try {
-    const response = await fetch('branding-info.json', { cache: 'no-store' });
-    if (!response.ok) return null;
-    const branding = await response.json();
-    return branding ?? null;
-  } catch {
-    return null;
+  const candidates = ['branding-info.json', 'branded/branded.json'];
+
+  for (const candidate of candidates) {
+    try {
+      const response = await fetch(candidate, { cache: 'no-store' });
+      if (!response.ok) continue;
+      const branding = await response.json();
+      if (branding) return branding;
+    } catch {
+      continue;
+    }
   }
+
+  return null;
 }
 
 export async function loadBrandingIntoStorage() {

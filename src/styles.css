@@ -133,8 +133,17 @@
 
 @layer base {
   * { border-color: var(--color-border); }
+  html,
   body {
+    min-height: 100%;
     background-color: var(--color-background);
+    background-image: var(--app-background-image, none);
+    background-size: var(--app-background-size, cover);
+    background-position: var(--app-background-position, center);
+    background-repeat: var(--app-background-repeat, no-repeat);
+    background-attachment: var(--app-background-attachment, fixed);
+  }
+  body {
     color: var(--color-foreground);
     font-family: var(--font-sans);
   }

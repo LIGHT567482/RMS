@@ -89,6 +89,16 @@ function RootShell({ children }: { children: React.ReactNode }) {
   );
 }
 
+function logBackgroundImageApplication(theme: "light" | "dark", imageUrl: string | undefined, shouldUseImage: boolean) {
+  if (typeof document === "undefined") return;
+  console.log(
+    `[RMS Background] theme=${theme}, shouldUseImage=${shouldUseImage}, imageUrl=${
+      imageUrl ? `${imageUrl.slice(0, 100)}${imageUrl.length > 100 ? "..." : ""}` : "none"
+    }`,
+  );
+  console.log(`[RMS Background] body.backgroundImage=${document.body.style.backgroundImage}`);
+}
+
 function RootComponent() {
   const school = useStore(getSchool);
   const [theme, setThemeState] = useState<"light" | "dark">("light");
@@ -138,6 +148,27 @@ function RootComponent() {
       if (value) root.style.setProperty(key, value);
     });
 
+    const lightImage = school.backgroundImageUrlLight;
+    const darkImage = school.backgroundImageUrlDark;
+    const useLightImage = school.useBackgroundImageLight ?? false;
+    const useDarkImage = school.useBackgroundImageDark ?? false;
+    const shouldUseImage = theme === "light" ? useLightImage && Boolean(lightImage) : useDarkImage && Boolean(darkImage);
+    const imageUrl = theme === "light" ? lightImage : darkImage;
+
+    const backgroundImageValue = shouldUseImage && imageUrl ? `url("${imageUrl}")` : "none";
+    root.style.setProperty("--app-background-image", backgroundImageValue);
+    root.style.setProperty("--app-background-size", shouldUseImage ? "cover" : "");
+    root.style.setProperty("--app-background-position", shouldUseImage ? "center" : "");
+    root.style.setProperty("--app-background-repeat", shouldUseImage ? "no-repeat" : "");
+    root.style.setProperty("--app-background-attachment", shouldUseImage ? "fixed" : "");
+
+    document.body.style.backgroundImage = backgroundImageValue;
+    document.body.style.backgroundSize = shouldUseImage ? "cover" : "";
+    document.body.style.backgroundPosition = shouldUseImage ? "center" : "";
+    document.body.style.backgroundRepeat = shouldUseImage ? "no-repeat" : "";
+    document.body.style.backgroundAttachment = shouldUseImage ? "fixed" : "";
+    logBackgroundImageApplication(theme, imageUrl, shouldUseImage);
+
     if (school.primaryColor && school.accentColor) {
       root.style.setProperty(
         "--gradient-hero",
@@ -148,7 +179,7 @@ function RootComponent() {
     document.title = school.name
       ? `Report Management System (RMS) — ${school.name}`
       : "Report Management System (RMS)";
-  }, [school]);
+  }, [school, theme]);
 
   return (
     <ThemeContext.Provider

@@ -118,6 +118,10 @@ export interface SchoolInfo {
   backgroundColorDark?: string;
   foregroundColor?: string;
   foregroundColorDark?: string;
+  backgroundImageUrlLight?: string;
+  backgroundImageUrlDark?: string;
+  useBackgroundImageLight?: boolean;
+  useBackgroundImageDark?: boolean;
   reportCardPageColor?: string;
   reportCardContentColor?: string;
   reportCardHeadingColor?: string;
@@ -126,6 +130,8 @@ export interface SchoolInfo {
   reportCardHeadingColorAdvanced?: string;
   reportCardColor?: string;
   reportCardWatermarkColored?: boolean;
+  reportCardHeadSignatureDataUrl?: string;
+  reportCardStampDataUrl?: string;
   selectedExamSets?: ExamSet[];
   selectedExamSetsOrdinary?: ExamSet[];
   selectedExamSetsAdvanced?: ExamSet[];

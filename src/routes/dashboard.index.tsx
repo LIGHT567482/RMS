@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useMemo } from "react";
 import { Card } from "@/components/ui/card";
 import {
   useStore,
@@ -55,6 +56,14 @@ function Overview() {
   const projects = useStore(getProjects);
   const school = useStore(getSchool);
 
+  const uniqueSubjectCount = useMemo(() => {
+    const names = new Set<string>();
+    for (const subject of subjects) {
+      names.add(subject.name.trim().toLowerCase());
+    }
+    return names.size;
+  }, [subjects]);
+
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
       <div>
@@ -69,7 +78,7 @@ function Overview() {
           variant="secondary"
           icon={BookOpen}
           label="Subjects"
-          value={subjects.length}
+          value={uniqueSubjectCount}
           to="/dashboard/subjects"
         />
         <Stat
