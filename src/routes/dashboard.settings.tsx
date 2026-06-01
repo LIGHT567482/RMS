@@ -1165,6 +1165,13 @@ function AppearanceSection() {
   const [foregroundColor, setForegroundColor] = useState(school.foregroundColor || "#111111");
   const [backgroundColorDark, setBackgroundColorDark] = useState(school.backgroundColorDark || "#0f172a");
   const [foregroundColorDark, setForegroundColorDark] = useState(school.foregroundColorDark || "#f8fafc");
+  const [primaryForeground, setPrimaryForeground] = useState<string | undefined>(school.primaryForeground);
+  const [secondaryForeground, setSecondaryForeground] = useState<string | undefined>(school.secondaryForeground);
+  const [mutedForeground, setMutedForeground] = useState<string | undefined>(school.mutedForeground);
+  const [accentForeground, setAccentForeground] = useState<string | undefined>(school.accentForeground);
+  const [cardForeground, setCardForeground] = useState<string | undefined>(school.cardForeground);
+  const [popoverForeground, setPopoverForeground] = useState<string | undefined>(school.popoverForeground);
+  const [sidebarForeground, setSidebarForeground] = useState<string | undefined>(school.sidebarForeground);
   const [backgroundImageUrlLight, setBackgroundImageUrlLight] = useState(school.backgroundImageUrlLight || "");
   const [useBackgroundImageLight, setUseBackgroundImageLight] = useState<boolean>(school.useBackgroundImageLight ?? false);
   const [backgroundImageUrlDark, setBackgroundImageUrlDark] = useState(school.backgroundImageUrlDark || "");
@@ -1239,6 +1246,13 @@ function AppearanceSection() {
       reportCardPageColor: reportPageColor,
       reportCardContentColor: reportContentColor,
       reportCardHeadingColor: reportHeadingColor,
+      primaryForeground: primaryForeground || undefined,
+      secondaryForeground: secondaryForeground || undefined,
+      mutedForeground: mutedForeground || undefined,
+      accentForeground: accentForeground || undefined,
+      cardForeground: cardForeground || undefined,
+      popoverForeground: popoverForeground || undefined,
+      sidebarForeground: sidebarForeground || undefined,
       reportCardPageColorAdvanced: reportPageColorAdv,
       reportCardContentColorAdvanced: reportContentColorAdv,
       reportCardHeadingColorAdvanced: reportHeadingColorAdv,
@@ -1321,6 +1335,34 @@ function AppearanceSection() {
             <div className="grid grid-cols-[1fr_auto] items-center gap-3 px-4 py-4">
               <span>Foreground Color (Dark)</span>
               <input id="foreground-color-dark" title="Foreground Color (Dark Mode)" type="color" value={foregroundColorDark} onChange={(e) => setForegroundColorDark(e.target.value)} className="h-10 w-20" />
+            </div>
+            <div className="grid grid-cols-[1fr_auto] items-center gap-3 px-4 py-4">
+              <span>Primary Text Color</span>
+              <input id="primary-foreground" title="Primary Text Color" type="color" value={primaryForeground ?? "#111111"} onChange={(e) => setPrimaryForeground(e.target.value)} className="h-10 w-20" />
+            </div>
+            <div className="grid grid-cols-[1fr_auto] items-center gap-3 px-4 py-4">
+              <span>Secondary Text Color</span>
+              <input id="secondary-foreground" title="Secondary Text Color" type="color" value={secondaryForeground ?? "#6b7280"} onChange={(e) => setSecondaryForeground(e.target.value)} className="h-10 w-20" />
+            </div>
+            <div className="grid grid-cols-[1fr_auto] items-center gap-3 px-4 py-4">
+              <span>Muted Text Color</span>
+              <input id="muted-foreground" title="Muted Text Color" type="color" value={mutedForeground ?? "#9ca3af"} onChange={(e) => setMutedForeground(e.target.value)} className="h-10 w-20" />
+            </div>
+            <div className="grid grid-cols-[1fr_auto] items-center gap-3 px-4 py-4">
+              <span>Accent Text Color</span>
+              <input id="accent-foreground" title="Accent Text Color" type="color" value={accentForeground ?? "#111111"} onChange={(e) => setAccentForeground(e.target.value)} className="h-10 w-20" />
+            </div>
+            <div className="grid grid-cols-[1fr_auto] items-center gap-3 px-4 py-4">
+              <span>Card Text Color</span>
+              <input id="card-foreground" title="Card Text Color" type="color" value={cardForeground ?? "#111111"} onChange={(e) => setCardForeground(e.target.value)} className="h-10 w-20" />
+            </div>
+            <div className="grid grid-cols-[1fr_auto] items-center gap-3 px-4 py-4">
+              <span>Popover Text Color</span>
+              <input id="popover-foreground" title="Popover Text Color" type="color" value={popoverForeground ?? "#111111"} onChange={(e) => setPopoverForeground(e.target.value)} className="h-10 w-20" />
+            </div>
+            <div className="grid grid-cols-[1fr_auto] items-center gap-3 px-4 py-4">
+              <span>Sidebar Text Color</span>
+              <input id="sidebar-foreground" title="Sidebar Text Color" type="color" value={sidebarForeground ?? "#ffffff"} onChange={(e) => setSidebarForeground(e.target.value)} className="h-10 w-20" />
             </div>
           </div>
         </div>

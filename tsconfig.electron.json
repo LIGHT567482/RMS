@@ -7,9 +7,9 @@
     "declaration": false,
     "sourceMap": false,
     "types": ["node"],
-    "module": "ESNext",
-    "target": "ES2020",
-    "moduleResolution": "Bundler",
+    "module": "NodeNext",
+    "target": "ES2022",
+    "moduleResolution": "NodeNext",
     "allowImportingTsExtensions": false
   },
   "include": ["electron/**/*.ts"],

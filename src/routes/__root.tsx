@@ -144,7 +144,36 @@ function RootComponent() {
       vars.push(["--foreground", school.foregroundColorDark || defaultSchool.foregroundColorDark]);
     }
 
-    vars.forEach(([key, value]) => {
+    // Helper: try to compute readable foreground (black/white) from a hex color
+    function readableForegroundFromHex(hex?: string) {
+      if (!hex || !hex.startsWith("#") || (hex.length !== 7 && hex.length !== 4)) return undefined;
+      // Normalize short hex (#abc -> #aabbcc)
+      let h = hex.slice(1);
+      if (h.length === 3) h = h.split("").map((c) => c + c).join("");
+      const r = parseInt(h.slice(0, 2), 16) / 255;
+      const g = parseInt(h.slice(2, 4), 16) / 255;
+      const b = parseInt(h.slice(4, 6), 16) / 255;
+      // Relative luminance
+      const srgb = [r, g, b].map((c) => (c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4)));
+      const lum = 0.2126 * srgb[0] + 0.7152 * srgb[1] + 0.0722 * srgb[2];
+      return lum > 0.5 ? "#000000" : "#ffffff";
+    }
+
+    // Additional optional foreground/text color variables and report colors
+    const extraVars: Array<[string, string | undefined]> = [
+      ["--primary-foreground", school.primaryForeground ?? readableForegroundFromHex(school.primaryColor ?? defaultSchool.primaryColor)],
+      ["--secondary-foreground", school.secondaryForeground ?? readableForegroundFromHex(school.secondaryColor ?? defaultSchool.secondaryColor)],
+      ["--muted-foreground", school.mutedForeground ?? readableForegroundFromHex(school.backgroundColor ?? defaultSchool.backgroundColor)],
+      ["--accent-foreground", school.accentForeground ?? readableForegroundFromHex(school.accentColor ?? defaultSchool.accentColor)],
+      ["--card-foreground", school.cardForeground ?? readableForegroundFromHex(school.backgroundColor ?? defaultSchool.backgroundColor)],
+      ["--popover-foreground", school.popoverForeground ?? readableForegroundFromHex(school.backgroundColor ?? defaultSchool.backgroundColor)],
+      ["--sidebar-foreground", school.sidebarForeground ?? readableForegroundFromHex(school.sidebar ?? undefined)],
+      ["--report-heading-color", school.reportCardHeadingColor],
+      ["--report-content-color", school.reportCardContentColor],
+      ["--report-page-color", school.reportCardPageColor],
+    ];
+
+    vars.concat(extraVars).forEach(([key, value]) => {
       if (value) root.style.setProperty(key, value);
     });
 

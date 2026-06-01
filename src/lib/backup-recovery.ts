@@ -9,6 +9,7 @@
  */
 
 import { supabase } from "@/integrations/supabase/client";
+import { storageGet, storageSet, storageKeys } from "./storage";
 
 interface BackupRecord {
   id: string;
@@ -26,15 +27,7 @@ const BACKUP_VERSION = 1;
  */
 function getAppStorageKeys(): string[] {
   if (typeof window === "undefined") return [];
-
-  const keys: string[] = [];
-  for (let i = 0; i < window.localStorage.length; i++) {
-    const key = window.localStorage.key(i);
-    if (key && key.startsWith("light_rms:")) {
-      keys.push(key);
-    }
-  }
-  return keys;
+  return storageKeys().filter((key) => key.startsWith("light_rms:"));
 }
 
 /**
@@ -53,7 +46,7 @@ export async function backupDataToSupabase(): Promise<{
     }
 
     const backupRecords: BackupRecord[] = keys.map((key) => {
-      const value = window.localStorage.getItem(key) || "";
+      const value = storageGet(key) || "";
       return {
         id: `backup_${key}_${Date.now()}`,
         key,
@@ -110,15 +103,15 @@ export async function restoreDataFromSupabase(): Promise<{
     // Restore each record to localStorage if Supabase version is newer
     for (const record of data as BackupRecord[]) {
       try {
-        const localValue = window.localStorage.getItem(record.key);
+        const localValue = storageGet(record.key);
         const localTimestamp = localValue
-          ? parseInt(localStorage.getItem(`${record.key}_timestamp`) || "0")
+          ? parseInt(storageGet(`${record.key}_timestamp`) || "0")
           : 0;
 
         // Restore if Supabase data is newer
         if (record.timestamp > localTimestamp) {
-          window.localStorage.setItem(record.key, record.value);
-          window.localStorage.setItem(`${record.key}_timestamp`, String(record.timestamp));
+          storageSet(record.key, record.value);
+          storageSet(`${record.key}_timestamp`, String(record.timestamp));
           restoredKeys.push(record.key);
         }
       } catch (err) {

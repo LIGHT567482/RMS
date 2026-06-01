@@ -121,6 +121,14 @@ app.on('window-all-closed', () => {
   }
 });
 
+import {
+  getStorageValue,
+  setStorageValue,
+  removeStorageValue,
+  getStorageKeys,
+  getStorageAll,
+} from './db.js';
+
 app.on('activate', () => {
   if (mainWindow === null) {
     createWindow();
@@ -133,13 +141,39 @@ ipcMain.handle('get-app-info', () => {
     const config = fs.readFileSync(brandedPath, 'utf-8');
     return {
       ...JSON.parse(config),
-      manufacturer: DEFAULT_MANUFACTURER
+      manufacturer: DEFAULT_MANUFACTURER,
     };
   } catch (error) {
     return {
       productName: 'RMS',
       name: 'LIGHT TECHNOLOGIES',
-      manufacturer: DEFAULT_MANUFACTURER
+      manufacturer: DEFAULT_MANUFACTURER,
     };
   }
+});
+
+ipcMain.on('storage-get', (event, key: string) => {
+  event.returnValue = getStorageValue(key);
+});
+
+ipcMain.on('storage-set', (event, key: string, value: string) => {
+  setStorageValue(key, value);
+  event.returnValue = true;
+});
+
+ipcMain.on('storage-remove', (event, key: string) => {
+  removeStorageValue(key);
+  event.returnValue = true;
+});
+
+ipcMain.handle('storage-keys', async () => {
+  return getStorageKeys();
+});
+
+ipcMain.on('storage-keys-sync', (event) => {
+  event.returnValue = getStorageKeys();
+});
+
+ipcMain.handle('storage-all', async () => {
+  return getStorageAll();
 });

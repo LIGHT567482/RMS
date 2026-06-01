@@ -11,7 +11,7 @@
   "scripts": {
     "dev": "vite dev",
     "dev:serve": "vite dev --port 5173",
-    "dev:electron": "concurrently \"npm run dev:serve\" \"wait-on http://localhost:5173 && electron .\"",
+    "dev:electron": "npm run build:electron-main && concurrently \"npm run dev:serve\" \"wait-on http://localhost:5173 && electron .\"",
     "build": "vite build",
     "build:dev": "vite build --mode development",
     "build:electron-frontend": "vite build --config vite.config.electron.ts",
@@ -63,6 +63,7 @@
     "@tanstack/react-router": "^1.168.0",
     "@tanstack/react-start": "^1.167.14",
     "@tanstack/router-plugin": "^1.167.10",
+    "better-sqlite3": "^12.10.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
@@ -90,6 +91,7 @@
   "devDependencies": {
     "@eslint/js": "^9.32.0",
     "@lovable.dev/vite-tanstack-config": "^1.4.0",
+    "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^22.16.5",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",

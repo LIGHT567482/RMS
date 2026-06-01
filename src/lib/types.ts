@@ -125,6 +125,14 @@ export interface SchoolInfo {
   reportCardPageColor?: string;
   reportCardContentColor?: string;
   reportCardHeadingColor?: string;
+  /* Additional customizable foreground/text colors */
+  primaryForeground?: string;
+  secondaryForeground?: string;
+  mutedForeground?: string;
+  accentForeground?: string;
+  cardForeground?: string;
+  popoverForeground?: string;
+  sidebarForeground?: string;
   reportCardPageColorAdvanced?: string;
   reportCardContentColorAdvanced?: string;
   reportCardHeadingColorAdvanced?: string;

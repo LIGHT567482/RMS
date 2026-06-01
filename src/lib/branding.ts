@@ -25,6 +25,13 @@ const SCHOOL_BRANDING_KEYS: Array<keyof SchoolInfo> = [
   'reportCardHeadingColorAdvanced',
   'reportCardColor',
   'reportCardWatermarkColored'
+  ,'primaryForeground'
+  ,'secondaryForeground'
+  ,'mutedForeground'
+  ,'accentForeground'
+  ,'cardForeground'
+  ,'popoverForeground'
+  ,'sidebarForeground'
 ];
 
 type BrandingSource = Record<string, unknown>;

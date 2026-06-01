@@ -1,15 +1,48 @@
-﻿#!/usr/bin/env node
+#!/usr/bin/env node
 
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { execSync } from 'child_process';
+import Jimp from 'jimp';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const projectRoot = path.join(__dirname, '..');
+const distElectronDir = path.join(projectRoot, 'dist-electron');
 const DEFAULT_MANUFACTURER = 'LIGHT TECHNOLOGIES';
 const validTargets = new Set(['nsis', 'msi', 'portable']);
+
+async function getPngBufferFromDataUrl(dataUrl) {
+  const matches = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
+  if (!matches) return null;
+
+  const mime = matches[1];
+  const buffer = Buffer.from(matches[2], 'base64');
+  if (mime === 'image/png') return buffer;
+
+  const image = await Jimp.read(buffer);
+  return await image.getBufferAsync(Jimp.MIME_PNG);
+}
+
+function buildIcoFromPng(pngBuffer) {
+  const header = Buffer.alloc(6);
+  header.writeUInt16LE(0, 0);
+  header.writeUInt16LE(1, 2);
+  header.writeUInt16LE(1, 4);
+
+  const entry = Buffer.alloc(16);
+  entry.writeUInt8(0, 0); // width 0 = 256
+  entry.writeUInt8(0, 1); // height 0 = 256
+  entry.writeUInt8(0, 2); // color count
+  entry.writeUInt8(0, 3); // reserved
+  entry.writeUInt16LE(1, 4); // color planes
+  entry.writeUInt16LE(32, 6); // bit count
+  entry.writeUInt32LE(pngBuffer.length, 8);
+  entry.writeUInt32LE(header.length + entry.length, 12);
+
+  return Buffer.concat([header, entry, pngBuffer]);
+}
 
 const colors = {
   reset: '\x1b[0m',
@@ -29,11 +62,20 @@ function logStep(step, title) {
   log('─'.repeat(60), 'blue');
 }
 
+function getPackageManager() {
+  const execPath = process.env.npm_execpath || '';
+  if (execPath.includes('pnpm')) return 'pnpm';
+  if (execPath.includes('yarn')) return 'yarn';
+  return 'npm';
+}
+
+const packageManager = getPackageManager();
+
 async function cleanPreviousBuilds() {
   logStep(0, 'Cleaning previous build artifacts');
 
   const cleanPaths = [
-    path.join(projectRoot, 'dist-electron'),
+    distElectronDir,
     path.join(projectRoot, 'electron-build'),
     path.join(projectRoot, 'dist'),
     path.join(projectRoot, 'public', 'branding-info.json'),
@@ -106,24 +148,49 @@ async function generateBrandedAssets(branding) {
     generatedAt: new Date().toISOString()
   }, null, 2));
 
-  const sourceIconDir = path.join(projectRoot, 'src-tauri', 'icons');
-  const iconSources = [
-    { src: 'icon.png', dest: 'icon.png' },
-    { src: 'icon.ico', dest: 'icon.ico' }
-  ];
+  let extractedBrandedIcon = false;
+  if (branding.logoDataUrl) {
+    try {
+      log('  - Extracting logo from branded.json...', 'blue');
+      const pngPath = path.join(publicDir, 'icon.png');
+      const icoPath = path.join(publicDir, 'icon.ico');
 
-  for (const icon of iconSources) {
-    const sourcePath = path.join(sourceIconDir, icon.src);
-    const destPath = path.join(publicDir, icon.dest);
+      const pngBuffer = await getPngBufferFromDataUrl(branding.logoDataUrl);
+      if (pngBuffer) {
+        fs.writeFileSync(pngPath, pngBuffer);
+        log(`  ✓ Extracted and saved public/icon.png`, 'green');
 
-    if (fs.existsSync(sourcePath)) {
-      fs.copyFileSync(sourcePath, destPath);
-      log(`  - Copied ${icon.src} to public/${icon.dest}`, 'green');
-    } else {
-      log(
-        `⚠ Missing client logo file: ${sourcePath}. Add the new client's icon.png and icon.ico to src-tauri/icons before running this build.`,
-        'red'
-      );
+        const icoBuffer = buildIcoFromPng(pngBuffer);
+        fs.writeFileSync(icoPath, icoBuffer);
+        log(`  ✓ Generated and saved public/icon.ico`, 'green');
+        extractedBrandedIcon = true;
+      }
+    } catch (err) {
+      log(`⚠ Error generating icons from branded.json: ${err.message}`, 'yellow');
+    }
+  }
+
+  if (!extractedBrandedIcon) {
+    log('⚠ Branding logoDataUrl missing or extraction failed. Falling back to copy from src-tauri/icons if available.', 'yellow');
+    const sourceIconDir = path.join(projectRoot, 'src-tauri', 'icons');
+    const iconSources = [
+      { src: 'icon.png', dest: 'icon.png' },
+      { src: 'icon.ico', dest: 'icon.ico' }
+    ];
+
+    for (const icon of iconSources) {
+      const sourcePath = path.join(sourceIconDir, icon.src);
+      const destPath = path.join(publicDir, icon.dest);
+
+      if (fs.existsSync(sourcePath)) {
+        fs.copyFileSync(sourcePath, destPath);
+        log(`  - Copied ${icon.src} to public/${icon.dest}`, 'green');
+      } else {
+        log(
+          `⚠ Missing client logo file: ${sourcePath}. Add the new client's icon.png and icon.ico to src-tauri/icons before running this build.`,
+          'red'
+        );
+      }
     }
   }
 
@@ -135,8 +202,8 @@ async function buildFrontend() {
   logStep(3, 'Building frontend');
 
   try {
-    log('Running: pnpm run build:electron-frontend', 'blue');
-    execSync('pnpm run build:electron-frontend', {
+    log(`Running: ${packageManager} run build:electron-frontend`, 'blue');
+    execSync(`${packageManager} run build:electron-frontend`, {
       cwd: projectRoot,
       stdio: 'inherit'
     });
@@ -151,8 +218,8 @@ async function buildElectronMain() {
   logStep(4, 'Compiling Electron main process');
 
   try {
-    log('Running: pnpm run build:electron-main', 'blue');
-    execSync('pnpm run build:electron-main', {
+    log(`Running: ${packageManager} run build:electron-main`, 'blue');
+    execSync(`${packageManager} run build:electron-main`, {
       cwd: projectRoot,
       stdio: 'inherit'
     });
@@ -228,7 +295,7 @@ async function buildElectronApp(target) {
 async function displayResults(branding) {
   logStep(6, 'Build Complete');
 
-  const outputDir = path.join(projectRoot, 'dist-electron');
+  const outputDir = distElectronDir;
   const files = fs.existsSync(outputDir)
     ? fs.readdirSync(outputDir).filter(f => f.endsWith('.exe') || f.endsWith('.msi') || f.endsWith('-Setup.exe'))
     : [];
@@ -258,7 +325,7 @@ async function displayResults(branding) {
 async function launchSmokeTest() {
   logStep(7, 'Launching built application for smoke test');
 
-  const outputDir = path.join(projectRoot, 'dist-electron');
+  const outputDir = distElectronDir;
   const unpackedExe = path.join(outputDir, 'win-unpacked', `${getProductNameFromConfig()}.exe`);
   const installerFiles = fs.existsSync(outputDir)
     ? fs.readdirSync(outputDir).filter(f => f.match(/\.(msi|exe)$/i))

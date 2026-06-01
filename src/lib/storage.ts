@@ -18,6 +18,21 @@ import {
   defaultAdvancedScale,
 } from "./types";
 
+declare global {
+  interface Window {
+    electronAPI?: {
+      storage?: {
+        get: (key: string) => string | null;
+        set: (key: string, value: string) => void;
+        remove: (key: string) => void;
+        keys: () => Promise<string[]>;
+        keysSync: () => string[];
+        getAll: () => Promise<Array<{ key: string; value: string; updatedAt: number }>>;
+      };
+    };
+  }
+}
+
 const NS = "light_rms:";
 const K = {
   school: NS + "school",
@@ -36,10 +51,60 @@ const K = {
   continuousAssessments: NS + "continuousAssessments",
 };
 
+function isElectronStorageAvailable() {
+  return (typeof window !== "undefined" && Boolean(window.electronAPI?.storage));
+}
+
+function storageGet(key: string): string | null {
+  if (typeof window === "undefined") return null;
+  if (isElectronStorageAvailable()) {
+    return window.electronAPI!.storage!.get(key);
+  }
+  return window.localStorage.getItem(key);
+}
+
+function storageSet(key: string, value: string) {
+  if (typeof window === "undefined") return;
+  if (isElectronStorageAvailable()) {
+    window.electronAPI!.storage!.set(key, value);
+    return;
+  }
+  window.localStorage.setItem(key, value);
+}
+
+function storageRemove(key: string) {
+  if (typeof window === "undefined") return;
+  if (isElectronStorageAvailable()) {
+    window.electronAPI!.storage!.remove(key);
+    return;
+  }
+  window.localStorage.removeItem(key);
+}
+
+function storageKeys(): string[] {
+  if (typeof window === "undefined") return [];
+  if (isElectronStorageAvailable()) {
+    if (typeof window.electronAPI!.storage!.keysSync === "function") {
+      return window.electronAPI!.storage!.keysSync();
+    }
+    // Fall back to async key resolution if sync API is unavailable.
+    // This should not happen in Electron builds where keysSync is provided.
+    return [];
+  }
+  const keys: string[] = [];
+  for (let i = 0; i < window.localStorage.length; i++) {
+    const key = window.localStorage.key(i);
+    if (key) keys.push(key);
+  }
+  return keys;
+}
+
+export { storageGet, storageSet, storageRemove, storageKeys };
+
 function read<T>(key: string, fallback: T): T {
   if (typeof window === "undefined") return fallback;
   try {
-    const raw = window.localStorage.getItem(key);
+    const raw = storageGet(key);
     return raw ? (JSON.parse(raw) as T) : fallback;
   } catch {
     return fallback;
@@ -47,7 +112,7 @@ function read<T>(key: string, fallback: T): T {
 }
 function write<T>(key: string, value: T) {
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(key, JSON.stringify(value));
+  storageSet(key, JSON.stringify(value));
   window.dispatchEvent(new CustomEvent("light-storage-change", { detail: { key } }));
 }
 
@@ -151,6 +216,13 @@ export const defaultSchool: SchoolInfo = {
   backgroundColorDark: "#0f172a",
   foregroundColor: "#111111",
   foregroundColorDark: "#f8fafc",
+  primaryForeground: undefined,
+  secondaryForeground: undefined,
+  mutedForeground: undefined,
+  accentForeground: undefined,
+  cardForeground: undefined,
+  popoverForeground: undefined,
+  sidebarForeground: undefined,
   backgroundImageUrlLight: undefined,
   backgroundImageUrlDark: undefined,
   useBackgroundImageLight: false,
@@ -213,7 +285,7 @@ function buildDefaultAdvancedSubjects(): Subject[] {
 
 export function ensureInitialized() {
   if (typeof window === "undefined") return;
-  if (window.localStorage.getItem(K.initialized)) return;
+  if (storageGet(K.initialized)) return;
 
   write<SchoolInfo>(K.school, defaultSchool);
   write<Subject[]>(K.ordinarySubjects, buildDefaultOrdinarySubjects());
@@ -225,7 +297,7 @@ export function ensureInitialized() {
   write<AuthInfo | null>(K.auth, { accessCode: "12345" });
   write<Record<string, import("./types").PaperGradingMode>>(K.paperGradingConfig, {});
   write<Record<string, string>>(K.paperGradingTarget, {});
-  window.localStorage.setItem(K.initialized, "1");
+  storageSet(K.initialized, "1");
 }
 
 // === School ===
@@ -528,19 +600,20 @@ export const setAdminPassword = (v: string) => write(K.adminPassword, v);
 // === Reset everything ===
 export function factoryReset() {
   if (typeof window === "undefined") return;
-  // Remove all known keys
-  Object.values(K).forEach((k) => window.localStorage.removeItem(k));
-  // Also remove any keys in localStorage that use our namespace prefix to ensure no leftover data
+
+  // Remove all known keys from the current storage backend.
+  Object.values(K).forEach((k) => storageRemove(k));
+
+  // Also remove any keys in the current storage backend that use our namespace prefix.
   try {
-    for (let i = 0; i < window.localStorage.length; i++) {
-      const key = window.localStorage.key(i);
-      if (key && key.startsWith(NS)) {
-        window.localStorage.removeItem(key);
-        i -= 1; // adjust index because length changed
+    const keys = storageKeys();
+    keys.forEach((key) => {
+      if (key.startsWith(NS)) {
+        storageRemove(key);
       }
-    }
+    });
   } catch {
-    // ignore any errors iterating localStorage
+    // ignore any errors iterating storage keys
   }
 
   // Clear caches (if any were created by the app)

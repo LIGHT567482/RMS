@@ -29,7 +29,8 @@ if (!studentId) {
     path: outPath,
     format: "A4",
     printBackground: true,
-    margin: { top: "15mm", bottom: "15mm", left: "15mm", right: "15mm" },
+    // Ensure at least 20mm (2cm) margins so images don't touch sheet edges
+    margin: { top: "20mm", bottom: "20mm", left: "20mm", right: "20mm" },
   };
 
   console.log("Generating PDF to", outPath);
